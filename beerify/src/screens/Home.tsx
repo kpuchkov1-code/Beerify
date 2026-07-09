@@ -29,13 +29,15 @@ export default function Home({ profile, history, unreviewed, onStartNight, onOpe
       {unreviewed && (
         <button className="card card--highlight" onClick={() => onOpenSummary(unreviewed)}>
           <span className="card--highlight__emoji">☀️</span>
-          <span>
+          <span className="card--highlight__text">
             <strong>Your night recap is ready</strong>
-            <small>{formatNightDate(unreviewed.startedAt)} · tap to see your units</small>
+            <small>{formatNightDate(unreviewed.startedAt)} · Tap to see your units</small>
           </span>
+          <span className="chevron">›</span>
         </button>
       )}
 
+      <h2 className="section-title">Tonight's vibe</h2>
       <div className="target-picker">
         {TARGET_ORDER.map((id) => {
           const t = TARGETS[id]
@@ -47,8 +49,13 @@ export default function Home({ profile, history, unreviewed, onStartNight, onOpe
               onClick={() => setTarget(id)}
             >
               <span className="target-card__emoji">{t.emoji}</span>
-              <span className="target-card__label">{t.label}</span>
-              <span className="target-card__tagline">{t.tagline}</span>
+              <span className="target-card__text">
+                <span className="target-card__label">{t.label}</span>
+                <span className="target-card__tagline">{t.tagline}</span>
+              </span>
+              <span className={`target-card__check ${active ? 'target-card__check--on' : ''}`}>
+                ✓
+              </span>
             </button>
           )
         })}
@@ -62,20 +69,23 @@ export default function Home({ profile, history, unreviewed, onStartNight, onOpe
 
       {history.length > 0 && (
         <section className="history">
-          <h2>Past nights</h2>
-          {[...history]
-            .sort((a, b) => b.startedAt - a.startedAt)
-            .slice(0, 10)
-            .map((s) => {
-              const units = s.drinks.reduce((sum, d) => sum + d.units, 0)
-              return (
-                <button key={s.id} className="history__row" onClick={() => onOpenSummary(s)}>
-                  <span className="history__emoji">{TARGETS[s.targetId].emoji}</span>
-                  <span className="history__date">{formatNightDate(s.startedAt)}</span>
-                  <span className="history__units">{formatUnits(units)} units</span>
-                </button>
-              )
-            })}
+          <h2 className="section-title">Past nights</h2>
+          <div className="history__list">
+            {[...history]
+              .sort((a, b) => b.startedAt - a.startedAt)
+              .slice(0, 10)
+              .map((s) => {
+                const units = s.drinks.reduce((sum, d) => sum + d.units, 0)
+                return (
+                  <button key={s.id} className="history__row" onClick={() => onOpenSummary(s)}>
+                    <span className="history__emoji">{TARGETS[s.targetId].emoji}</span>
+                    <span className="history__date">{formatNightDate(s.startedAt)}</span>
+                    <span className="history__units">{formatUnits(units)} units</span>
+                    <span className="chevron">›</span>
+                  </button>
+                )
+              })}
+          </div>
         </section>
       )}
 

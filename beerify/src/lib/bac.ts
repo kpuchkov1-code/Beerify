@@ -34,7 +34,7 @@ function absorbedFraction(elapsedMin: number, absorptionMin: number): number {
  *
  * Elimination is applied to the total absorbed alcohol: the liver processes a
  * fixed amount per hour starting once alcohol is present. We approximate by
- * integrating in 5-minute steps from the first drink — cheap and accurate
+ * integrating in 5-minute steps from the first drink, which is cheap and accurate
  * enough for a pacing companion (this is a guide, never a legal measure).
  */
 export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number): number {
@@ -76,6 +76,20 @@ export function projectBac(
   minutes: number,
 ): number {
   return estimateBac(drinks, profile, from + minutes * 60_000)
+}
+
+/** Highest BAC reached in the next `horizonMin` minutes with no further drinks. */
+export function peakBacAhead(
+  drinks: LoggedDrink[],
+  profile: Profile,
+  from: number,
+  horizonMin: number,
+): number {
+  let peak = 0
+  for (let m = 0; m <= horizonMin; m += 5) {
+    peak = Math.max(peak, estimateBac(drinks, profile, from + m * 60_000))
+  }
+  return peak
 }
 
 /** Minutes until BAC drops to `targetBac` with no further drinks (capped at 12h). */

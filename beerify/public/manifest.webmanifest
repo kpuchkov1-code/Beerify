@@ -4,8 +4,8 @@
   "description": "Your friendly AI drinking buddy — pick your vibe, tap your drinks, stay in the zone.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fff8ec",
-  "theme_color": "#fff8ec",
+  "background_color": "#f2f2f7",
+  "theme_color": "#f2f2f7",
   "icons": [
     {
       "src": "/icon.png",

@@ -51,31 +51,49 @@ export function unitsOfAlcohol(type: DrinkType): number {
 }
 
 export const TARGETS: Record<TargetId, Target> = {
+  glow: {
+    id: 'glow',
+    label: 'Light glow',
+    emoji: '🙂',
+    tagline: 'Relaxed and clear-headed. One or two, tops.',
+    minBac: 0.01,
+    maxBac: 0.03,
+  },
   buzz: {
     id: 'buzz',
     label: 'Gentle buzz',
     emoji: '😊',
     tagline: 'Warm, chatty, fully in control.',
-    minBac: 0.02,
-    maxBac: 0.04,
+    minBac: 0.03,
+    maxBac: 0.05,
   },
   tipsy: {
     id: 'tipsy',
     label: 'Happily tipsy',
     emoji: '😄',
     tagline: 'Giggly and glowing, dance-floor ready.',
-    minBac: 0.04,
-    maxBac: 0.06,
+    minBac: 0.05,
+    maxBac: 0.07,
   },
   merry: {
     id: 'merry',
     label: 'Properly merry',
     emoji: '🥳',
-    tagline: 'Big night energy. Pace yourself!',
-    minBac: 0.06,
-    maxBac: 0.08,
+    tagline: 'Loud laughs and bold dance moves.',
+    minBac: 0.07,
+    maxBac: 0.09,
     warning: 'Above this point the fun drops off fast. Beerify will keep you honest.',
+  },
+  bignight: {
+    id: 'bignight',
+    label: 'Big night',
+    emoji: '🤪',
+    tagline: 'The stories-for-years zone. Handle with care.',
+    minBac: 0.09,
+    maxBac: 0.11,
+    warning:
+      'This is a lot. Expect a rough morning. Eat well, drink water between rounds, and stay with friends.',
   },
 }
 
-export const TARGET_ORDER: TargetId[] = ['buzz', 'tipsy', 'merry']
+export const TARGET_ORDER: TargetId[] = ['glow', 'buzz', 'tipsy', 'merry', 'bignight']

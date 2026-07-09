@@ -23,7 +23,7 @@ export function saveData(data: AppData): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(data))
   } catch {
-    // Storage full or unavailable (private mode) — the app still works in-memory.
+    // Storage full or unavailable (private mode); the app still works in-memory.
   }
 }
 

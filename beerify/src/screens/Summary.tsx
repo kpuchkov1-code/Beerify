@@ -77,7 +77,7 @@ export default function Summary({ session, profile, onClose }: Props) {
 
       {session.drinks.length > 0 && (
         <section className="summary__breakdown">
-          <h2>What you had</h2>
+          <h2 className="section-title">What you had</h2>
           <ul>
             {[...stats.byType.entries()].map(([typeId, entry]) => {
               const d = DRINK_TYPES[typeId as keyof typeof DRINK_TYPES]
@@ -98,14 +98,14 @@ export default function Summary({ session, profile, onClose }: Props) {
       <section className="summary__notes">
         {stillProcessing && (
           <p>
-            ⏳ Your body is still processing — you'll be fully clear around{' '}
+            ⏳ Your body is still processing. You'll be fully clear around{' '}
             <strong>{formatTime(stats.soberAt)}</strong>. Take it easy until then.
           </p>
         )}
         <p>
           📊 That's <strong>{formatUnits(stats.totalUnits)}</strong> of the{' '}
           {WEEKLY_GUIDELINE_UNITS} units many health guidelines suggest as a weekly
-          maximum{stats.totalUnits > WEEKLY_GUIDELINE_UNITS ? ' — a lighter week ahead would be smart' : ''}.
+          maximum{stats.totalUnits > WEEKLY_GUIDELINE_UNITS ? '. A lighter week ahead would be smart' : ''}.
         </p>
         <p>
           🎯 Target was “{target.label}” {target.emoji}. {session.drinks.length > 0 ? 'Check the verdict above for how it went.' : 'Nothing logged, nothing to judge!'}
@@ -114,7 +114,7 @@ export default function Summary({ session, profile, onClose }: Props) {
       </section>
 
       <button className="btn btn--primary" onClick={onClose}>
-        Got it — back home
+        Got it, back home
       </button>
     </div>
   )

@@ -28,7 +28,7 @@ export interface LoggedDrink {
   grams: number // grams of pure ethanol
 }
 
-export type TargetId = 'buzz' | 'tipsy' | 'merry'
+export type TargetId = 'glow' | 'buzz' | 'tipsy' | 'merry' | 'bignight'
 
 export interface Target {
   id: TargetId

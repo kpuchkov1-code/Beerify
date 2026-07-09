@@ -28,7 +28,7 @@ export default function Onboarding({ onDone }: Props) {
           <h1>Beerify</h1>
           <p className="lead">
             Your friendly AI drinking buddy. Pick your vibe, tap your drinks, and
-            Beerify keeps you right where you want to be — no further.
+            Beerify keeps you right where you want to be, and no further.
           </p>
         </div>
         <ul className="onboarding__points">
@@ -41,7 +41,7 @@ export default function Onboarding({ onDone }: Props) {
           Let's set you up
         </button>
         <p className="fine-print">
-          Estimates only — never a legal or medical measure. Never drink and drive.
+          Estimates only, never a legal or medical measure. Never drink and drive.
         </p>
       </div>
     )
@@ -105,7 +105,7 @@ export default function Onboarding({ onDone }: Props) {
           onDone({ name: name.trim(), weightKg, sex: sex!, createdAt: Date.now() })
         }
       >
-        Done — take me in 🍻
+        Done, take me in 🍻
       </button>
     </div>
   )

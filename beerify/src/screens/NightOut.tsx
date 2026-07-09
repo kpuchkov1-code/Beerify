@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DrinkTypeId, NightSession, Profile } from '../types'
 import { DRINK_TYPES, TARGETS } from '../lib/drinks'
-import { estimateBac } from '../lib/bac'
+import { estimateBac, peakBacAhead } from '../lib/bac'
 import { coachMessage, zoneStatus } from '../lib/coach'
 import { formatTime, formatUnits } from '../lib/format'
 import BacGauge from '../components/BacGauge'
@@ -22,11 +22,15 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
   const [confirmEnd, setConfirmEnd] = useState(false)
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000)
+    const id = setInterval(() => setNow(Date.now()), 15_000)
     return () => clearInterval(id)
   }, [])
 
   const bac = useMemo(() => estimateBac(session.drinks, profile, now), [session.drinks, profile, now])
+  const incoming = useMemo(
+    () => peakBacAhead(session.drinks, profile, now, 60),
+    [session.drinks, profile, now],
+  )
   const status = zoneStatus(bac, session)
   const coach = useMemo(() => coachMessage(session, profile, now), [session, profile, now])
   const target = TARGETS[session.targetId]
@@ -49,17 +53,17 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
     <div className={`screen night night--${status}`}>
       <header className="night__header">
         <div>
-          <h1>Night out 🌙</h1>
+          <h1>Night out</h1>
           <span className="night__target">
-            Target: {target.label} {target.emoji}
+            {target.emoji} {target.label}
           </span>
         </div>
-        <button className="btn btn--ghost" onClick={() => setConfirmEnd(true)}>
+        <button className="btn btn--quiet" onClick={() => setConfirmEnd(true)}>
           End night
         </button>
       </header>
 
-      <BacGauge bac={bac} target={target} status={status} />
+      <BacGauge bac={bac} incoming={incoming} target={target} status={status} />
 
       <div className={`coach coach--${coach.tone}`} role="status" aria-live="polite">
         <span className="coach__avatar">🤖</span>
@@ -71,10 +75,11 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
 
       {blocked && (
         <div className="night__blocked">
-          Drink logging is paused — you're well past your zone. Water only for now. 💧
+          Drink logging is paused. You are well past your zone, so it is water only for now. 💧
         </div>
       )}
 
+      <h2 className="section-title">Tap what you're having</h2>
       <div className="tap-grid">
         {TAP_ORDER.map((id) => {
           const d = DRINK_TYPES[id]
@@ -96,8 +101,10 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
 
       <button className="tap-btn tap-btn--water" onClick={tapWater} aria-label="Log a water">
         <span className="tap-btn__emoji">💧</span>
-        <span className="tap-btn__label">Water break</span>
-        <span className="tap-btn__detail">your liver's best friend</span>
+        <span className="tap-btn__water-text">
+          <span className="tap-btn__label">Water break</span>
+          <span className="tap-btn__detail">Your liver's best friend</span>
+        </span>
       </button>
 
       <div className="night__meta">
@@ -106,7 +113,7 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
           {session.waters.length > 0 && ` · ${session.waters.length} 💧`}
         </span>
         {session.drinks.length > 0 && (
-          <button className="btn btn--ghost btn--small" onClick={onUndo}>
+          <button className="btn btn--quiet btn--small" onClick={onUndo}>
             Undo last
           </button>
         )}
@@ -132,13 +139,13 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <h2>Calling it a night?</h2>
             <p>
-              We'll save tonight and have your summary — units, peak and all — waiting for you in the
-              morning. ☀️
+              We'll save tonight and have your summary of units, peak and all, waiting for you in
+              the morning. ☀️
             </p>
             <button className="btn btn--primary" onClick={onEndNight}>
-              End night & sleep tight 😴
+              End night, sleep tight 😴
             </button>
-            <button className="btn btn--ghost" onClick={() => setConfirmEnd(false)}>
+            <button className="btn btn--quiet" onClick={() => setConfirmEnd(false)}>
               Keep going
             </button>
           </div>

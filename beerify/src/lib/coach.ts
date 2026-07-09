@@ -51,7 +51,7 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
         text: pick(
           [
             `Fresh night, ${firstName}! Tap a drink below when you start.`,
-            `All set. Your target is “${target.label}” ${target.emoji} — tap as you sip.`,
+            `All set. Your target is “${target.label}” ${target.emoji}. Tap as you sip.`,
             `Ready when you are. First one's on you. 😉`,
           ],
           seed,
@@ -74,9 +74,9 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
         tone: 'cheer',
         text: pick(
           [
-            `Warming up nicely — you're on track for “${target.label}” ${target.emoji}.`,
+            `Warming up nicely. You're on track for “${target.label}” ${target.emoji}.`,
             `That last one is still kicking in. Cruise for a bit.`,
-            `On the way up. No rush — the zone will come to you.`,
+            `On the way up. No rush, the zone will come to you.`,
           ],
           seed,
         ),
@@ -88,7 +88,7 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
       text: pick(
         [
           `You're drifting below the zone. One more would top you back up.`,
-          `Buzz is fading — your call: another round, or ride it out?`,
+          `Buzz is fading. Your call: another round, or ride it out?`,
         ],
         seed,
       ),
@@ -104,17 +104,17 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
           text: pick(
             [
               `You're in the zone, but what's in your system will push you past it. Skip the next round.`,
-              `Perfect spot right now — and still climbing. Hold off a while to stay here.`,
+              `Perfect spot right now, and still climbing. Hold off a while to stay here.`,
             ],
             seed,
           ),
-          tip: hadWater ? undefined : 'Grab a water — it buys you time in the zone.',
+          tip: hadWater ? undefined : 'Grab a water. It buys you time in the zone.',
         }
       }
       return {
         tone: 'cheer',
         text: pick(
-          [`You're IN the zone ${target.emoji} — this is the good stuff. Keep this pace.`, `Chef's kiss. Exactly where you wanted to be.`],
+          [`You're IN the zone ${target.emoji}. This is the good stuff. Keep this pace.`, `Chef's kiss. Exactly where you wanted to be.`],
           seed,
         ),
         tip: hadWater ? undefined : 'A water between rounds keeps you here longer.',
@@ -139,8 +139,8 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
       tone: 'nudge',
       text: pick(
         [
-          `You've floated past your zone. No more for now — you'll drift back in ~${minsBack} min.`,
-          `A touch over target. Water, snack, dance break — anything but another drink.`,
+          `You've floated past your zone. No more for now. You'll drift back in about ${minsBack} min.`,
+          `A touch over target. Water, snack, dance break. Anything but another drink.`,
           `Past the sweet spot. Pause here and let your liver catch up (~${minsBack} min).`,
         ],
         seed,
@@ -154,7 +154,7 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
     text: pick(
       [
         `Well past your target, ${firstName}. Stop drinking, get water and food, and stay with friends.`,
-        `This is over the fun line. No more alcohol tonight — water and a mate nearby, please.`,
+        `This is over the fun line. No more alcohol tonight. Water and a mate nearby, please.`,
       ],
       seed,
     ),
