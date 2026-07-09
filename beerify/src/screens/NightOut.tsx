@@ -4,7 +4,7 @@ import { DRINK_TYPES, TARGETS } from '../lib/drinks'
 import { estimateBac, peakBacAhead } from '../lib/bac'
 import { coachMessage, zoneStatus } from '../lib/coach'
 import { formatTime, formatUnits } from '../lib/format'
-import BacGauge from '../components/BacGauge'
+import BeerMeter from '../components/BeerMeter'
 
 interface Props {
   session: NightSession
@@ -20,9 +20,10 @@ const TAP_ORDER: DrinkTypeId[] = ['beer', 'shot', 'wine', 'cocktail']
 export default function NightOut({ session, profile, onLogDrink, onLogWater, onUndo, onEndNight }: Props) {
   const [now, setNow] = useState(() => Date.now())
   const [confirmEnd, setConfirmEnd] = useState(false)
+  const [burst, setBurst] = useState<{ key: number; emoji: string; source: string } | null>(null)
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 15_000)
+    const id = setInterval(() => setNow(Date.now()), 5_000)
     return () => clearInterval(id)
   }, [])
 
@@ -40,12 +41,14 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
   function tap(id: DrinkTypeId) {
     onLogDrink(id)
     setNow(Date.now())
+    setBurst({ key: Date.now(), emoji: DRINK_TYPES[id].emoji, source: id })
     if (navigator.vibrate) navigator.vibrate(30)
   }
 
   function tapWater() {
     onLogWater()
     setNow(Date.now())
+    setBurst({ key: Date.now(), emoji: '💧', source: 'water' })
     if (navigator.vibrate) navigator.vibrate(15)
   }
 
@@ -63,7 +66,7 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
         </button>
       </header>
 
-      <BacGauge bac={bac} incoming={incoming} target={target} status={status} />
+      <BeerMeter bac={bac} incoming={incoming} target={target} status={status} />
 
       <div className={`coach coach--${coach.tone}`} role="status" aria-live="polite">
         <span className="coach__avatar">🤖</span>
@@ -94,6 +97,11 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
               <span className="tap-btn__emoji">{d.emoji}</span>
               <span className="tap-btn__label">{d.label}</span>
               <span className="tap-btn__detail">{d.detail}</span>
+              {burst?.source === id && (
+                <span className="tap-btn__burst" key={burst.key} aria-hidden="true">
+                  {burst.emoji}
+                </span>
+              )}
             </button>
           )
         })}
@@ -105,6 +113,11 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
           <span className="tap-btn__label">Water break</span>
           <span className="tap-btn__detail">Your liver's best friend</span>
         </span>
+        {burst?.source === 'water' && (
+          <span className="tap-btn__burst" key={burst.key} aria-hidden="true">
+            {burst.emoji}
+          </span>
+        )}
       </button>
 
       <div className="night__meta">

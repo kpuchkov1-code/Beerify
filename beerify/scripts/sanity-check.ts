@@ -22,6 +22,13 @@ for (const d of Object.values(DRINK_TYPES)) {
   console.log(`  ${d.emoji} ${d.label}: ${unitsOfAlcohol(d).toFixed(2)} units, ${gramsOfAlcohol(d).toFixed(1)}g`)
 }
 
+console.log('early responsiveness (1 beer at t=0):')
+const oneBeer = [drink('beer', 0)]
+for (const mins of [1, 2, 5, 10, 20, 35]) {
+  const bac = estimateBac(oneBeer, profile, t0 + mins * 60_000)
+  console.log(`  t=${mins}min -> BAC ${bac.toFixed(4)}%`)
+}
+
 const twoBeers = [drink('beer', 0), drink('beer', 30)]
 for (const mins of [15, 30, 60, 90, 120, 240]) {
   const bac = estimateBac(twoBeers, profile, t0 + mins * 60_000)

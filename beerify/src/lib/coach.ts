@@ -59,6 +59,20 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
         tip: 'Eating before you drink slows absorption and smooths the ride.',
       }
     }
+    if (sinceLast !== null && sinceLast < 25) {
+      return {
+        tone: 'cheer',
+        text: pick(
+          [
+            `That one is on its way in. Give it a few minutes to land. 🚀`,
+            `Nice. Your body is unpacking that drink right now.`,
+            `Incoming! Watch the mug fill up as it hits.`,
+          ],
+          seed,
+        ),
+        tip: 'A drink takes 20 to 40 minutes to fully show up. No need to chase it.',
+      }
+    }
     return {
       tone: 'chill',
       text: pick(

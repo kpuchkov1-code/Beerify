@@ -128,9 +128,15 @@ button {
 }
 
 .btn--primary {
-  background: var(--accent);
+  background: linear-gradient(180deg, #ffab2e, var(--accent));
   color: #fff;
-  box-shadow: 0 2px 10px rgba(255, 149, 0, 0.3);
+  box-shadow: 0 5px 0 #d97a00, 0 8px 16px rgba(255, 149, 0, 0.25);
+}
+
+.btn--primary:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #d97a00, 0 2px 6px rgba(255, 149, 0, 0.25);
+  opacity: 1;
 }
 
 .btn--primary:disabled {
@@ -435,128 +441,334 @@ button {
   font-weight: 600;
 }
 
-/* ---------- gauge ---------- */
+/* ---------- beer meter ---------- */
 
-.gauge {
+.meter {
   background: var(--card);
   border-radius: var(--radius);
-  padding: 20px 18px 16px;
+  padding: 20px 18px;
   box-shadow: var(--shadow);
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 22px;
 }
 
-.gauge__top {
+.mug {
+  position: relative;
+  flex-shrink: 0;
+  padding-right: 26px;
+}
+
+.mug__glass {
+  position: relative;
+  width: 110px;
+  height: 190px;
+  border: 4px solid #2f2013;
+  border-radius: 10px 10px 22px 22px;
+  background: linear-gradient(105deg, #f7f9fc 0%, #e9eef5 45%, #f7f9fc 60%);
+  overflow: hidden;
+  box-shadow: inset 6px 0 10px rgba(255, 255, 255, 0.8), inset -8px 0 12px rgba(47, 32, 19, 0.08);
+}
+
+.mug__handle {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  width: 42px;
+  height: 84px;
+  border: 4px solid #2f2013;
+  border-radius: 0 22px 22px 0;
+  border-left: none;
+}
+
+.mug__base {
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-63%);
+  width: 120px;
+  height: 10px;
+  background: #2f2013;
+  border-radius: 999px;
+}
+
+.mug__zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(52, 199, 89, 0.22),
+    rgba(52, 199, 89, 0.22) 8px,
+    rgba(52, 199, 89, 0.1) 8px,
+    rgba(52, 199, 89, 0.1) 16px
+  );
+  border-top: 2.5px dashed var(--green);
+  border-bottom: 2.5px dashed var(--green);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.mug__zone-tag {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.mug__incoming {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 149, 0, 0.3),
+    rgba(255, 149, 0, 0.3) 7px,
+    rgba(255, 179, 64, 0.16) 7px,
+    rgba(255, 179, 64, 0.16) 14px
+  );
+  transition: height 0.9s cubic-bezier(0.34, 1.3, 0.5, 1);
+  animation: shimmer-in 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes shimmer-in {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mug__liquid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #ffc14d 0%, #ff9500 55%, #f07f00 100%);
+  transition: height 0.9s cubic-bezier(0.34, 1.4, 0.5, 1);
+  z-index: 1;
+  overflow: visible;
+}
+
+.mug__liquid--empty {
+  transition: height 0.6s ease;
+}
+
+.mug__foam {
+  position: absolute;
+  top: -11px;
+  left: -2px;
+  right: -2px;
+  height: 18px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
 }
 
-.gauge__readout {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+.mug__foam span {
+  width: 26px;
+  height: 26px;
+  background: #fffdf7;
+  border-radius: 50%;
+  box-shadow: 0 2px 3px rgba(47, 32, 19, 0.12);
+  animation: foam-bob 2.4s ease-in-out infinite;
 }
 
-.gauge__value {
+.mug__foam span:nth-child(2n) {
+  animation-delay: -0.7s;
+  width: 22px;
+  height: 22px;
+  align-self: flex-end;
+}
+
+.mug__foam span:nth-child(3n) {
+  animation-delay: -1.4s;
+}
+
+@keyframes foam-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3.5px);
+  }
+}
+
+.mug__bubble {
+  position: absolute;
+  bottom: -10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  animation: bubble-rise 2.6s linear infinite;
+}
+
+.mug__bubble--1 {
+  left: 14%;
+  animation-delay: 0s;
+}
+
+.mug__bubble--2 {
+  left: 36%;
+  width: 6px;
+  height: 6px;
+  animation-delay: -0.9s;
+  animation-duration: 2.1s;
+}
+
+.mug__bubble--3 {
+  left: 58%;
+  animation-delay: -1.7s;
+}
+
+.mug__bubble--4 {
+  left: 76%;
+  width: 7px;
+  height: 7px;
+  animation-delay: -0.4s;
+  animation-duration: 3.1s;
+}
+
+.mug__bubble--5 {
+  left: 26%;
+  width: 5px;
+  height: 5px;
+  animation-delay: -2.2s;
+  animation-duration: 1.9s;
+}
+
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-170px) scale(1.1);
+    opacity: 0;
+  }
+}
+
+.mug__empty-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 26px;
+  opacity: 0.6;
+}
+
+.meter__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.meter__value {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Display',
     'Segoe UI', Roboto, sans-serif;
-  font-size: 44px;
-  font-weight: 800;
+  font-size: 52px;
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   line-height: 1;
+  animation: value-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.gauge__unit {
+@keyframes value-pop {
+  0% {
+    transform: scale(1.28) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+.meter__unit {
   color: var(--muted);
   font-size: 13px;
-  font-weight: 600;
-}
-
-.gauge__status {
   font-weight: 700;
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 14px;
-  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.gauge--sober .gauge__status,
-.gauge--warming .gauge__status {
+.meter__status {
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 15px;
+  white-space: nowrap;
+  margin-top: 6px;
+  animation: value-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.meter--sober .meter__status,
+.meter--warming .meter__status {
   background: var(--blue-soft);
   color: var(--blue-deep);
 }
 
-.gauge--in-zone .gauge__status {
+.meter--in-zone .meter__status {
   background: var(--green-soft);
   color: var(--green-deep);
 }
 
-.gauge--over .gauge__status {
+.meter--over .meter__status {
   background: var(--accent-soft);
   color: var(--accent-deep);
 }
 
-.gauge--way-over .gauge__status {
+.meter--way-over .meter__status {
   background: var(--red-soft);
   color: var(--red-deep);
+  animation: warn-shake 0.5s ease-in-out;
 }
 
-.gauge__track {
-  position: relative;
-  height: 14px;
-  border-radius: 999px;
-  background: #e5e5ea;
-  overflow: hidden;
+@keyframes warn-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
 }
 
-.gauge__zone {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(52, 199, 89, 0.28);
-}
-
-.gauge__incoming {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  background: rgba(255, 149, 0, 0.35);
-  border-radius: 999px;
-  transition: width 0.5s ease;
-}
-
-.gauge__fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  background: linear-gradient(90deg, #ffb340, var(--accent));
-  border-radius: 999px;
-  transition: width 0.5s ease;
-  min-width: 0;
-}
-
-.gauge__legend {
+.meter__incoming-hint {
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-top: -6px;
-}
-
-.gauge__legend-zone {
-  color: var(--green-deep);
-}
-
-.gauge__hint {
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
-  color: var(--muted);
-  text-align: center;
+  font-weight: 600;
+  color: var(--accent-deep);
+  margin-top: 2px;
+}
+
+.meter__incoming-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: repeating-linear-gradient(45deg, rgba(255, 149, 0, 0.5), rgba(255, 149, 0, 0.5) 2px, rgba(255, 179, 64, 0.25) 2px, rgba(255, 179, 64, 0.25) 4px);
+  border: 1.5px solid var(--accent);
+  animation: shimmer-in 1.6s ease-in-out infinite alternate;
 }
 
 /* ---------- night out ---------- */
@@ -650,31 +862,62 @@ button {
 }
 
 .tap-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 3px;
   background: var(--card);
-  border-radius: var(--radius);
+  border-radius: 20px;
   padding: 20px 10px 16px;
-  box-shadow: var(--shadow);
-  transition: transform 0.08s ease, background 0.1s ease;
+  box-shadow: 0 5px 0 #e2e2e8, 0 8px 14px rgba(0, 0, 0, 0.05);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.1s ease;
   min-height: 132px;
 }
 
 .tap-btn:active {
-  transform: scale(0.95);
+  transform: translateY(4px) scale(0.97);
+  box-shadow: 0 1px 0 #e2e2e8, 0 2px 5px rgba(0, 0, 0, 0.05);
   background: var(--accent-soft);
+}
+
+.tap-btn:active .tap-btn__emoji {
+  transform: scale(1.2) rotate(-8deg);
 }
 
 .tap-btn:disabled {
   opacity: 0.35;
 }
 
+.tap-btn__burst {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  font-size: 40px;
+  pointer-events: none;
+  animation: burst-up 0.9s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+  z-index: 5;
+}
+
+@keyframes burst-up {
+  0% {
+    transform: translate(-50%, 10px) scale(0.4) rotate(0deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -84px) scale(1.35) rotate(14deg);
+    opacity: 0;
+  }
+}
+
 .tap-btn__emoji {
   font-size: 52px;
   line-height: 1.1;
+  transition: transform 0.12s ease;
 }
 
 .tap-btn__label {
@@ -694,10 +937,12 @@ button {
   flex-direction: row;
   gap: 14px;
   padding: 14px;
+  box-shadow: 0 5px 0 #c4dcf5, 0 8px 14px rgba(0, 122, 255, 0.08);
 }
 
 .tap-btn--water:active {
   background: #dcecfd;
+  box-shadow: 0 1px 0 #c4dcf5, 0 2px 5px rgba(0, 122, 255, 0.08);
 }
 
 .tap-btn--water .tap-btn__emoji {
@@ -897,4 +1142,16 @@ button {
   line-height: 1.5;
   font-size: 15px;
   font-weight: 500;
+}
+
+/* ---------- accessibility ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+  }
 }

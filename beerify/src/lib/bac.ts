@@ -22,11 +22,16 @@ function bacFromGrams(grams: number, profile: Profile): number {
   return (grams / (profile.weightKg * 1000 * widmarkR(profile.sex))) * 100
 }
 
-/** Fraction of a drink absorbed `elapsedMin` minutes after it was logged. */
+/**
+ * Fraction of a drink absorbed `elapsedMin` minutes after it was logged.
+ * Ease-out curve: alcohol shows up in the blood within minutes of a sip and
+ * the tail of absorption is slow, which matches how drinks actually feel.
+ */
 function absorbedFraction(elapsedMin: number, absorptionMin: number): number {
   if (elapsedMin <= 0) return 0
   if (elapsedMin >= absorptionMin) return 1
-  return elapsedMin / absorptionMin
+  const x = elapsedMin / absorptionMin
+  return 1 - (1 - x) * (1 - x)
 }
 
 /**
@@ -34,8 +39,9 @@ function absorbedFraction(elapsedMin: number, absorptionMin: number): number {
  *
  * Elimination is applied to the total absorbed alcohol: the liver processes a
  * fixed amount per hour starting once alcohol is present. We approximate by
- * integrating in 5-minute steps from the first drink, which is cheap and accurate
- * enough for a pacing companion (this is a guide, never a legal measure).
+ * integrating in 1-minute steps from the first drink, with elimination scaled
+ * to the actual elapsed time of each step (this is a guide, never a legal
+ * measure).
  */
 export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number): number {
   if (drinks.length === 0) return 0
@@ -43,29 +49,29 @@ export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number)
   const start = sorted[0].at
   if (at <= start) return 0
 
-  const stepMs = 5 * 60 * 1000
+  const stepMs = 60 * 1000
   let bac = 0
   let prevAbsorbed = 0
+  let prev = start
 
-  for (let t = start + stepMs; ; t = Math.min(t + stepMs, at)) {
-    const clamped = Math.min(t, at)
-    const dtHours = stepMs / 3_600_000
+  for (let t = start; t < at; ) {
+    t = Math.min(t + stepMs, at)
+    const dtHours = (t - prev) / 3_600_000
 
     let absorbed = 0
     for (const d of sorted) {
-      if (d.at > clamped) continue
+      if (d.at > t) continue
       const type = DRINK_TYPES[d.type]
-      const frac = absorbedFraction((clamped - d.at) / 60_000, type.absorptionMin)
+      const frac = absorbedFraction((t - d.at) / 60_000, type.absorptionMin)
       absorbed += bacFromGrams(d.grams * frac, profile)
     }
 
-    bac += absorbed - prevAbsorbed
+    bac = Math.max(0, bac + (absorbed - prevAbsorbed) - BETA_PER_HOUR * dtHours)
     prevAbsorbed = absorbed
-    if (bac > 0) bac = Math.max(0, bac - BETA_PER_HOUR * dtHours)
-    if (clamped >= at) break
+    prev = t
   }
 
-  return Math.max(0, bac)
+  return bac
 }
 
 /** BAC trend over the next `minutes` if no more drinks are logged. */
