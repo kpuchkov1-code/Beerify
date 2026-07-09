@@ -156,6 +156,23 @@ button {
   font-size: 16px;
 }
 
+.btn--secondary {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  box-shadow: 0 4px 0 #f5ddba;
+}
+
+.btn--secondary:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #f5ddba;
+  opacity: 1;
+}
+
+.btn--secondary:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
 .btn--small {
   font-size: 15px;
   padding: 6px 10px;
@@ -453,221 +470,137 @@ button {
   gap: 22px;
 }
 
-.mug {
-  position: relative;
+.mug-svg {
+  width: 148px;
   flex-shrink: 0;
-  padding-right: 26px;
-}
-
-.mug__glass {
-  position: relative;
-  width: 110px;
-  height: 190px;
-  border: 4px solid #2f2013;
-  border-radius: 10px 10px 22px 22px;
-  background: linear-gradient(105deg, #f7f9fc 0%, #e9eef5 45%, #f7f9fc 60%);
-  overflow: hidden;
-  box-shadow: inset 6px 0 10px rgba(255, 255, 255, 0.8), inset -8px 0 12px rgba(47, 32, 19, 0.08);
-}
-
-.mug__handle {
-  position: absolute;
-  right: 0;
-  top: 42px;
-  width: 42px;
-  height: 84px;
-  border: 4px solid #2f2013;
-  border-radius: 0 22px 22px 0;
-  border-left: none;
-}
-
-.mug__base {
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  transform: translateX(-63%);
-  width: 120px;
-  height: 10px;
-  background: #2f2013;
-  border-radius: 999px;
-}
-
-.mug__zone {
-  position: absolute;
-  left: 0;
-  right: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(52, 199, 89, 0.22),
-    rgba(52, 199, 89, 0.22) 8px,
-    rgba(52, 199, 89, 0.1) 8px,
-    rgba(52, 199, 89, 0.1) 16px
-  );
-  border-top: 2.5px dashed var(--green);
-  border-bottom: 2.5px dashed var(--green);
-  z-index: 2;
-  pointer-events: none;
-}
-
-.mug__zone-tag {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-4deg);
-  background: var(--green);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 3px 9px;
-  border-radius: 999px;
-  white-space: nowrap;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-}
-
-.mug__incoming {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(255, 149, 0, 0.3),
-    rgba(255, 149, 0, 0.3) 7px,
-    rgba(255, 179, 64, 0.16) 7px,
-    rgba(255, 179, 64, 0.16) 14px
-  );
-  transition: height 0.9s cubic-bezier(0.34, 1.3, 0.5, 1);
-  animation: shimmer-in 1.6s ease-in-out infinite alternate;
-}
-
-@keyframes shimmer-in {
-  from {
-    opacity: 0.65;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.mug__liquid {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(180deg, #ffc14d 0%, #ff9500 55%, #f07f00 100%);
-  transition: height 0.9s cubic-bezier(0.34, 1.4, 0.5, 1);
-  z-index: 1;
   overflow: visible;
 }
 
-.mug__liquid--empty {
-  transition: height 0.6s ease;
+.mug-svg__handle {
+  fill: none;
+  stroke: #241709;
+  stroke-width: 7.5;
+  stroke-linecap: round;
 }
 
-.mug__foam {
-  position: absolute;
-  top: -11px;
-  left: -2px;
-  right: -2px;
-  height: 18px;
-  display: flex;
-  justify-content: space-between;
+.mug-svg__outline {
+  fill: none;
+  stroke: #241709;
+  stroke-width: 7;
+  stroke-linejoin: round;
 }
 
-.mug__foam span {
-  width: 26px;
-  height: 26px;
-  background: #fffdf7;
-  border-radius: 50%;
-  box-shadow: 0 2px 3px rgba(47, 32, 19, 0.12);
-  animation: foam-bob 2.4s ease-in-out infinite;
+.mug-svg__base {
+  stroke: #241709;
+  stroke-width: 9;
+  stroke-linecap: round;
 }
 
-.mug__foam span:nth-child(2n) {
-  animation-delay: -0.7s;
-  width: 22px;
-  height: 22px;
-  align-self: flex-end;
+.mug-svg__liquid {
+  transition: transform 1.1s cubic-bezier(0.25, 1, 0.35, 1), opacity 0.6s ease;
+  will-change: transform;
 }
 
-.mug__foam span:nth-child(3n) {
-  animation-delay: -1.4s;
+.mug-svg__wave {
+  animation: wave-scroll 3.4s linear infinite;
 }
 
-@keyframes foam-bob {
-  0%,
-  100% {
-    transform: translateY(0);
+.mug-svg__wave-back {
+  animation: wave-scroll-back 5.2s linear infinite;
+}
+
+.mug-svg__foam {
+  animation: wave-scroll-back 7.5s linear infinite;
+}
+
+@keyframes wave-scroll {
+  from {
+    transform: translateX(0);
   }
-  50% {
-    transform: translateY(-3.5px);
+  to {
+    transform: translateX(-75px);
   }
 }
 
-.mug__bubble {
-  position: absolute;
-  bottom: -10px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.65);
-  animation: bubble-rise 2.6s linear infinite;
+@keyframes wave-scroll-back {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(75px);
+  }
 }
 
-.mug__bubble--1 {
-  left: 14%;
-  animation-delay: 0s;
+.mug-svg__bubble {
+  fill: rgba(255, 255, 255, 0.75);
+  animation: bubble-float linear infinite;
 }
 
-.mug__bubble--2 {
-  left: 36%;
-  width: 6px;
-  height: 6px;
-  animation-delay: -0.9s;
-  animation-duration: 2.1s;
-}
-
-.mug__bubble--3 {
-  left: 58%;
-  animation-delay: -1.7s;
-}
-
-.mug__bubble--4 {
-  left: 76%;
-  width: 7px;
-  height: 7px;
-  animation-delay: -0.4s;
-  animation-duration: 3.1s;
-}
-
-.mug__bubble--5 {
-  left: 26%;
-  width: 5px;
-  height: 5px;
-  animation-delay: -2.2s;
-  animation-duration: 1.9s;
-}
-
-@keyframes bubble-rise {
+@keyframes bubble-float {
   0% {
-    transform: translateY(0) scale(0.6);
+    transform: translateY(var(--depth)) scale(0.5);
     opacity: 0;
   }
-  15% {
-    opacity: 1;
+  12% {
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.9;
   }
   100% {
-    transform: translateY(-170px) scale(1.1);
+    transform: translateY(9px) scale(1.05);
     opacity: 0;
   }
 }
 
-.mug__empty-hint {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 26px;
+.mug-svg__incoming-group {
+  transition: transform 1.1s cubic-bezier(0.25, 1, 0.35, 1);
+}
+
+.mug-svg__incoming {
+  fill: rgba(255, 149, 0, 0.2);
+  animation: shimmer-in 1.6s ease-in-out infinite alternate;
+}
+
+.mug-svg__incoming-line {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 5 5;
+  stroke-linecap: round;
+  animation: shimmer-in 1.6s ease-in-out infinite alternate;
+}
+
+.mug-svg__zone rect {
+  fill: rgba(52, 199, 89, 0.16);
+}
+
+.mug-svg__zone line {
+  stroke: var(--green);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 5;
+  stroke-linecap: round;
+}
+
+.mug-svg__zone-tag rect {
+  fill: var(--green);
+  filter: drop-shadow(0 1.5px 1.5px rgba(0, 0, 0, 0.18));
+}
+
+.mug-svg__zone-tag text {
+  fill: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  text-anchor: middle;
+  font-family: inherit;
+}
+
+.mug-svg__shine {
+  fill: rgba(255, 255, 255, 0.55);
+}
+
+.mug-svg__empty {
+  font-size: 30px;
+  text-anchor: middle;
   opacity: 0.6;
 }
 
@@ -1142,6 +1075,183 @@ button {
   line-height: 1.5;
   font-size: 15px;
   font-weight: 500;
+}
+
+/* ---------- rooms & squad ---------- */
+
+.room-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.room-panel__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px;
+}
+
+.room-panel__pitch {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.room-panel__join {
+  display: flex;
+  gap: 10px;
+}
+
+.room-panel__join input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.35em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: 12px 8px 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.room-panel__join input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.room-panel__code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.room-panel__code {
+  display: block;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  line-height: 1.1;
+}
+
+.room-panel__code-hint {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.room-panel__empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.squad {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.squad.card {
+  overflow: hidden;
+}
+
+.squad__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.squad__row + .squad__row {
+  border-top: 1px solid var(--hairline);
+}
+
+.squad__row--alert {
+  background: var(--red-soft);
+}
+
+.squad__avatar {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.squad__who {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.squad__name {
+  font-weight: 700;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.squad__name em {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.squad__detail {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.squad__meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.squad__meter-glass {
+  display: flex;
+  align-items: flex-end;
+  width: 16px;
+  height: 34px;
+  border: 2.5px solid #241709;
+  border-radius: 3px 3px 6px 6px;
+  background: #f6f8fb;
+  overflow: hidden;
+}
+
+.squad__meter-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #ffc453, #ff9500);
+  transition: height 0.8s ease;
+}
+
+.squad__meter-target {
+  font-size: 15px;
+}
+
+.night__squad {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.night__squad-empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 4px 0;
 }
 
 /* ---------- accessibility ---------- */

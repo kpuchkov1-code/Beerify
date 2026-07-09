@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DrinkTypeId, NightSession, Profile } from '../types'
+import type { DrinkTypeId, NightSession, Profile, RoomMembership } from '../types'
 import { DRINK_TYPES, TARGETS } from '../lib/drinks'
 import { estimateBac, peakBacAhead } from '../lib/bac'
 import { coachMessage, zoneStatus } from '../lib/coach'
 import { formatTime, formatUnits } from '../lib/format'
 import BeerMeter from '../components/BeerMeter'
+import { useRoom } from '../lib/room'
+import { MemberRow } from '../components/Squad'
 
 interface Props {
   session: NightSession
   profile: Profile
+  membership: RoomMembership | null
   onLogDrink: (type: DrinkTypeId) => void
   onLogWater: () => void
   onUndo: () => void
@@ -17,7 +20,15 @@ interface Props {
 
 const TAP_ORDER: DrinkTypeId[] = ['beer', 'shot', 'wine', 'cocktail']
 
-export default function NightOut({ session, profile, onLogDrink, onLogWater, onUndo, onEndNight }: Props) {
+export default function NightOut({
+  session,
+  profile,
+  membership,
+  onLogDrink,
+  onLogWater,
+  onUndo,
+  onEndNight,
+}: Props) {
   const [now, setNow] = useState(() => Date.now())
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [burst, setBurst] = useState<{ key: number; emoji: string; source: string } | null>(null)
@@ -38,11 +49,26 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
   const totalUnits = session.drinks.reduce((sum, d) => sum + d.units, 0)
   const blocked = status === 'way-over'
 
+  const selfSnapshot = membership
+    ? {
+        id: membership.memberId,
+        name: profile.name,
+        bac,
+        units: totalUnits,
+        drinks: session.drinks.length,
+        targetId: session.targetId,
+        status,
+        inSession: true,
+      }
+    : null
+  const { room, refresh: syncRoom } = useRoom(membership, selfSnapshot, 20_000)
+
   function tap(id: DrinkTypeId) {
     onLogDrink(id)
     setNow(Date.now())
     setBurst({ key: Date.now(), emoji: DRINK_TYPES[id].emoji, source: id })
     if (navigator.vibrate) navigator.vibrate(30)
+    setTimeout(syncRoom, 400)
   }
 
   function tapWater() {
@@ -131,6 +157,21 @@ export default function NightOut({ session, profile, onLogDrink, onLogWater, onU
           </button>
         )}
       </div>
+
+      {membership && room && (
+        <section className="night__squad">
+          <h2 className="section-title">Your room · {membership.code}</h2>
+          {room.members.length > 1 ? (
+            <ul className="squad card">
+              {room.members.map((m) => (
+                <MemberRow key={m.id} member={m} isSelf={m.id === membership.memberId} />
+              ))}
+            </ul>
+          ) : (
+            <p className="night__squad-empty">No friends in the room yet. They'll pop up here.</p>
+          )}
+        </section>
+      )}
 
       {session.drinks.length > 0 && (
         <ul className="night__log">

@@ -3,7 +3,7 @@ import { estimateBac, minutesUntilBac } from '../src/lib/bac'
 import { DRINK_TYPES, gramsOfAlcohol, unitsOfAlcohol } from '../src/lib/drinks'
 import type { LoggedDrink, Profile } from '../src/types'
 
-const profile: Profile = { name: 'Test', weightKg: 80, sex: 'male', createdAt: 0 }
+const profile: Profile = { name: 'Test', weightKg: 80, sex: 'male', tolerance: 'monthly', createdAt: 0 }
 const t0 = Date.now()
 
 function drink(type: keyof typeof DRINK_TYPES, minutesAgoStart: number): LoggedDrink {

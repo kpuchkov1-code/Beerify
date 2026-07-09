@@ -33,6 +33,11 @@ await page.getByRole('button', { name: "Let's set you up" }).click()
 await page.getByPlaceholder('Your name').fill('Sam')
 await page.getByPlaceholder('e.g. 72').fill('80')
 await page.getByRole('button', { name: 'Male', exact: true }).click()
+await expect(
+  'continue disabled until tolerance picked',
+  await page.getByRole('button', { name: 'Done, take me in 🍻' }).isDisabled(),
+)
+await page.getByRole('button', { name: /Sometimes/ }).click()
 await page.screenshot({ path: SHOTS + '02-onboarding.png' })
 await page.getByRole('button', { name: 'Done, take me in 🍻' }).click()
 

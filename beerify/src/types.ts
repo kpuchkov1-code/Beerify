@@ -1,9 +1,13 @@
 export type Sex = 'female' | 'male' | 'other'
 
+/** How often the user drinks; used to tune alcohol elimination speed. */
+export type Tolerance = 'rare' | 'monthly' | 'weekly' | 'frequent'
+
 export interface Profile {
   name: string
   weightKg: number
   sex: Sex
+  tolerance: Tolerance
   createdAt: number
 }
 
@@ -51,10 +55,36 @@ export interface NightSession {
   reviewedAt?: number
 }
 
+/** The user's membership in a friends room. */
+export interface RoomMembership {
+  code: string
+  memberId: string
+}
+
+/** A friend's live state as shared inside a room. */
+export interface SquadMember {
+  id: string
+  name: string
+  bac: number
+  units: number
+  drinks: number
+  targetId: TargetId
+  status: string
+  inSession: boolean
+  updatedAt: number
+}
+
+export interface RoomState {
+  code: string
+  createdAt: number
+  members: SquadMember[]
+}
+
 export interface AppData {
   profile: Profile | null
   session: NightSession | null
   history: NightSession[]
+  room: RoomMembership | null
 }
 
 export type CoachTone = 'cheer' | 'chill' | 'nudge' | 'warn'

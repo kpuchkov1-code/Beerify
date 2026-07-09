@@ -1,15 +1,28 @@
-import type { LoggedDrink, Profile, Sex } from '../types'
+import type { LoggedDrink, Profile, Sex, Tolerance } from '../types'
 import { DRINK_TYPES } from './drinks'
 
 /**
  * Widmark-based BAC estimation with gradual absorption.
  *
- * Each drink's alcohol enters the bloodstream linearly over its absorption
+ * Each drink's alcohol enters the bloodstream over an ease-out absorption
  * window, while the liver eliminates at a constant rate (beta). This gives a
  * smooth, realistic curve instead of instant spikes.
  */
 
-const BETA_PER_HOUR = 0.015 // % BAC eliminated per hour (population average)
+/**
+ * % BAC eliminated per hour. Regular drinkers develop metabolic tolerance and
+ * clear alcohol measurably faster (published range roughly 0.012 to 0.022).
+ */
+const BETA_BY_TOLERANCE: Record<Tolerance, number> = {
+  rare: 0.012,
+  monthly: 0.015,
+  weekly: 0.017,
+  frequent: 0.02,
+}
+
+function betaPerHour(profile: Profile): number {
+  return BETA_BY_TOLERANCE[profile.tolerance] ?? 0.015
+}
 
 function widmarkR(sex: Sex): number {
   if (sex === 'male') return 0.68
@@ -66,7 +79,7 @@ export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number)
       absorbed += bacFromGrams(d.grams * frac, profile)
     }
 
-    bac = Math.max(0, bac + (absorbed - prevAbsorbed) - BETA_PER_HOUR * dtHours)
+    bac = Math.max(0, bac + (absorbed - prevAbsorbed) - betaPerHour(profile) * dtHours)
     prevAbsorbed = absorbed
     prev = t
   }

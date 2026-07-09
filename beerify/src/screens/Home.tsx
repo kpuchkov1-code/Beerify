@@ -1,17 +1,30 @@
 import { useState } from 'react'
-import type { NightSession, Profile, TargetId } from '../types'
+import type { NightSession, Profile, RoomMembership, TargetId } from '../types'
 import { TARGETS, TARGET_ORDER } from '../lib/drinks'
 import { formatNightDate, formatUnits } from '../lib/format'
+import RoomPanel from '../components/RoomPanel'
 
 interface Props {
   profile: Profile
   history: NightSession[]
   unreviewed: NightSession | null
+  membership: RoomMembership | null
   onStartNight: (target: TargetId) => void
   onOpenSummary: (session: NightSession) => void
+  onJoinRoom: (membership: RoomMembership) => void
+  onLeaveRoom: () => void
 }
 
-export default function Home({ profile, history, unreviewed, onStartNight, onOpenSummary }: Props) {
+export default function Home({
+  profile,
+  history,
+  unreviewed,
+  membership,
+  onStartNight,
+  onOpenSummary,
+  onJoinRoom,
+  onLeaveRoom,
+}: Props) {
   const [target, setTarget] = useState<TargetId>('tipsy')
   const firstName = profile.name.split(' ')[0]
   const hour = new Date().getHours()
@@ -66,6 +79,13 @@ export default function Home({ profile, history, unreviewed, onStartNight, onOpe
       <button className="btn btn--primary btn--big" onClick={() => onStartNight(target)}>
         Start night out 🌙
       </button>
+
+      <RoomPanel
+        profile={profile}
+        membership={membership}
+        onJoin={onJoinRoom}
+        onLeave={onLeaveRoom}
+      />
 
       {history.length > 0 && (
         <section className="history">

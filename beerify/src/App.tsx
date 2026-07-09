@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { AppData, DrinkTypeId, NightSession, Profile, TargetId } from './types'
+import type {
+  AppData,
+  DrinkTypeId,
+  NightSession,
+  Profile,
+  RoomMembership,
+  TargetId,
+} from './types'
 import { DRINK_TYPES, gramsOfAlcohol, unitsOfAlcohol } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
 import Onboarding from './screens/Onboarding'
@@ -77,6 +84,14 @@ export default function App() {
     })
   }
 
+  function joinRoom(room: RoomMembership) {
+    setData((d) => ({ ...d, room }))
+  }
+
+  function leaveRoom() {
+    setData((d) => ({ ...d, room: null }))
+  }
+
   function openSummary(session: NightSession) {
     setViewingSummary(session)
     if (!session.reviewedAt) {
@@ -102,6 +117,7 @@ export default function App() {
       <NightOut
         session={data.session}
         profile={data.profile}
+        membership={data.room}
         onLogDrink={logDrink}
         onLogWater={logWater}
         onUndo={undoDrink}
@@ -118,8 +134,11 @@ export default function App() {
       profile={data.profile}
       history={data.history}
       unreviewed={unreviewed}
+      membership={data.room}
       onStartNight={startNight}
       onOpenSummary={openSummary}
+      onJoinRoom={joinRoom}
+      onLeaveRoom={leaveRoom}
     />
   )
 }

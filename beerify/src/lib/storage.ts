@@ -2,17 +2,23 @@ import type { AppData } from '../types'
 
 const KEY = 'beerify:v1'
 
-const EMPTY: AppData = { profile: null, session: null, history: [] }
+const EMPTY: AppData = { profile: null, session: null, history: [], room: null }
 
 export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return EMPTY
     const parsed = JSON.parse(raw) as Partial<AppData>
+    const profile = parsed.profile ?? null
+    if (profile && !profile.tolerance) {
+      // Profiles created before the tolerance question default to the average.
+      profile.tolerance = 'monthly'
+    }
     return {
-      profile: parsed.profile ?? null,
+      profile,
       session: parsed.session ?? null,
       history: parsed.history ?? [],
+      room: parsed.room ?? null,
     }
   } catch {
     return EMPTY
