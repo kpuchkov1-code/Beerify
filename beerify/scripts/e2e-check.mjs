@@ -42,16 +42,22 @@ try {
   await page.getByRole('button', { name: 'Start the night →' }).click()
   await expect('active night navigation shows Drinks, Crew and More', await page.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button').count() === 3)
   await expect('meter starts at zero', await page.locator('.meter__value').getByText('.000', { exact: true }).isVisible())
+  const crewSwitchStarted = performance.now()
   await page.getByRole('button', { name: 'Crew', exact: true }).click()
+  await page.getByRole('heading', { name: 'Crew', exact: true }).waitFor()
+  await expect('active-night view switches within 250ms', performance.now() - crewSwitchStarted < 250)
   await expect('Crew stays available during an active solo night', await page.getByRole('heading', { name: 'Crew', exact: true }).isVisible() && await page.getByRole('button', { name: 'Create room' }).isVisible())
   await page.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
+  await expect('More menu stays compact', await page.locator('#active-night-more').evaluate((element) => element.getBoundingClientRect().height <= 96))
   await page.screenshot({ path: SHOTS + 'beerify-night-more-390.png' })
   await page.getByRole('button', { name: /History Past nights and recaps/ }).click()
+  await page.getByRole('heading', { name: 'Receipts from previous chaos' }).waitFor()
   await expect('History opens without ending the night', await page.getByRole('heading', { name: 'Receipts from previous chaos' }).isVisible())
   await expect('More closes after choosing History', !(await page.locator('#active-night-more').isVisible()))
   await page.getByRole('button', { name: 'More', exact: true }).click()
   await page.getByRole('button', { name: /Profile Details and preferences/ }).click()
+  await page.getByRole('heading', { name: 'Sam', exact: true }).waitFor()
   await expect('Profile opens without ending the night', await page.getByRole('heading', { name: 'Sam', exact: true }).isVisible())
   await page.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
   await page.waitForTimeout(100)
@@ -61,6 +67,15 @@ try {
   await page.getByRole('button', { name: /Lager pint/ }).click()
   await expect('drink flow asks for brand', await page.getByRole('heading', { name: 'Which brand?' }).isVisible())
   await expect('brand flow offers known and other brands', await page.getByRole('button', { name: /Stella Artois Lager pint/ }).isVisible() && await page.getByRole('button', { name: /Other brand/ }).isVisible())
+  for (const [width, height] of [[320, 568], [375, 667], [430, 932]]) {
+    await page.setViewportSize({ width, height })
+    const panelFits = await page.locator('.dialog-sheet--tall').evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return rect.top >= 0 && rect.bottom <= window.innerHeight
+    })
+    await expect(`drink picker fits at ${width}px`, panelFits)
+  }
+  await page.setViewportSize({ width: 390, height: 664 })
   await page.screenshot({ path: SHOTS + 'beerify-drink-brand-390.png', fullPage: true })
   await page.getByRole('button', { name: 'Close drinks' }).click()
   await page.getByRole('button', { name: 'Log Guinness' }).click()
@@ -76,6 +91,7 @@ try {
   await page.getByRole('button', { name: /Receipts from previous chaos/ }).click().catch(() => {})
   await expect('history contains the night', await page.getByText(/2 drinks/).isVisible())
   await page.locator('.receipt-list button').first().click()
+  await page.getByRole('heading', { name: 'The order' }).waitFor()
   await expect('summary shows the order', await page.getByRole('heading', { name: 'The order' }).isVisible())
   for (const [name, width, height] of [
     ['phone-320', 320, 568],

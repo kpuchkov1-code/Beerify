@@ -3,7 +3,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { Share } from '@capacitor/share'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { isNative } from './platform'
-import { supabase } from './account'
+import { initPushNotifications } from './notifications'
 
 export async function initNative(): Promise<void> {
   if (!isNative) return
@@ -16,7 +16,10 @@ export async function initNative(): Promise<void> {
         const tokens = new URLSearchParams(opened.hash.slice(1) || opened.search)
         const accessToken = tokens.get('access_token')
         const refreshToken = tokens.get('refresh_token')
-        if (accessToken && refreshToken) await supabase()?.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        if (accessToken && refreshToken) {
+          const { supabase } = await import('./account')
+          await supabase()?.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        }
         location.assign('/')
         return
       }
@@ -24,6 +27,10 @@ export async function initNative(): Promise<void> {
       if (/^[A-Z2-9]{6}$/.test(room ?? '')) location.assign(`/?room=${room}&via=invite`)
     } catch { /* Ignore malformed external links. */ }
   })
+  await NativeApp.addListener('appStateChange', ({ isActive }) => {
+    if (isActive) window.dispatchEvent(new Event('beerify:resume'))
+  })
+  await initPushNotifications()
 }
 
 export function nativeTap(strength: 'light' | 'medium' = 'light'): void {

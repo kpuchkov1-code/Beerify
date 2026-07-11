@@ -6,7 +6,7 @@ import { coachMessage, zoneStatus } from '../lib/coach'
 import { formatTime, formatUnits } from '../lib/format'
 import BeerMeter from '../components/BeerMeter'
 import DrinkIcon from '../components/DrinkIcon'
-import { sendRoomEvent, useRoom } from '../lib/room'
+import { queueRoomDrink, sendRoomEvent, useRoom } from '../lib/room'
 import { MemberRow } from '../components/Squad'
 import { nativeTap } from '../lib/native'
 import RoomCountdown from '../components/RoomCountdown'
@@ -31,13 +31,25 @@ export default function NightOut({ session, profile, preferences, membership, on
   const [burst, setBurst] = useState<string | null>(null)
   const [editing, setEditing] = useState<LoggedDrink | null>(null)
   const [minutesAgo, setMinutesAgo] = useState('0')
+  const [roomBusy, setRoomBusy] = useState<string | null>(null)
+  const [roomActionError, setRoomActionError] = useState<string | null>(null)
   const endDialog = useRef<HTMLDialogElement>(null)
   const drinksDialog = useRef<HTMLDialogElement>(null)
   const editDialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(id)
+    let id: ReturnType<typeof setInterval> | null = null
+    const update = () => {
+      if (id) clearInterval(id)
+      id = null
+      if (!document.hidden) {
+        setNow(Date.now())
+        id = setInterval(() => setNow(Date.now()), 5_000)
+      }
+    }
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => { if (id) clearInterval(id); document.removeEventListener('visibilitychange', update) }
   }, [])
 
   const bacRange = useMemo(() => estimateBacRange(session.drinks, profile, now, session.mealState), [session.drinks, profile, now, session.mealState])
@@ -64,7 +76,15 @@ export default function NightOut({ session, profile, preferences, membership, on
     status,
     inSession: true,
   } : null
-  const { room, refresh } = useRoom(membership, self, 5_000)
+  const { room, error: roomError, refresh } = useRoom(membership, self, 5_000)
+
+  async function roomAction(type: Parameters<typeof sendRoomEvent>[1], detail?: Parameters<typeof sendRoomEvent>[2]) {
+    if (!membership || roomBusy) return
+    setRoomBusy(type); setRoomActionError(null)
+    try { await sendRoomEvent(membership, type, detail); await refresh() }
+    catch (error) { setRoomActionError(error instanceof Error ? error.message : 'The room missed that') }
+    finally { setRoomBusy(null) }
+  }
 
   async function log(presetId: string) {
     const logged = onLogDrink(presetId)
@@ -77,8 +97,9 @@ export default function NightOut({ session, profile, preferences, membership, on
       if (navigator.vibrate) navigator.vibrate(30)
     }
     if (membership) {
-      sendRoomEvent(membership, 'drink', { drink: { name: logged.name, brand: logged.brand, icon: logged.icon, units: logged.units } })
-        .then(() => refresh()).catch(() => {})
+      const delivered = await queueRoomDrink(membership, { name: logged.name, brand: logged.brand, icon: logged.icon, units: logged.units })
+      if (delivered) await refresh()
+      else setRoomActionError('Drink saved. The room update will retry when you reconnect.')
     }
   }
 
@@ -114,12 +135,13 @@ export default function NightOut({ session, profile, preferences, membership, on
           <div className="section-heading"><h2>{room.name}</h2><span>{room.members.length} in</span></div>
           <ul className="squad squad--compact">{room.members.map((member) => <MemberRow key={member.id} member={member} isSelf={member.id === membership.memberId} />)}</ul>
           <div className="night-crew-actions">
-            <button onClick={() => sendRoomEvent(membership, 'reaction', { reaction: 'cheers' }).then(() => refresh()).catch(() => {})}>🍻 Cheers</button>
-            <button onClick={() => sendRoomEvent(membership, 'cheers-countdown').then(() => refresh()).catch(() => {})}>⏱ Drink up</button>
-            <button disabled={Boolean(room.activeRound)} onClick={() => sendRoomEvent(membership, 'round-invite').then(() => refresh()).catch(() => {})}>{room.activeRound ? 'Round open' : '＋ Next round'}</button>
+            <button disabled={Boolean(roomBusy)} aria-busy={roomBusy === 'reaction'} onClick={() => void roomAction('reaction', { reaction: 'cheers' })}>🍻 Cheers</button>
+            <button disabled={Boolean(roomBusy)} aria-busy={roomBusy === 'cheers-countdown'} onClick={() => void roomAction('cheers-countdown')}>{roomBusy === 'cheers-countdown' ? 'Calling…' : '⏱ Drink up'}</button>
+            <button disabled={Boolean(room.activeRound || roomBusy)} aria-busy={roomBusy === 'round-invite'} onClick={() => void roomAction('round-invite')}>{room.activeRound ? 'Round open' : roomBusy === 'round-invite' ? 'Opening…' : '＋ Next round'}</button>
           </div>
         </section>
       )}
+      {membership && (roomActionError || roomError) && <p className="inline-error" role="alert">{roomActionError || roomError}</p>}
 
       <section className="quick-log" aria-labelledby="quick-log-title">
         <div className="section-heading"><h2 id="quick-log-title">Tap the order</h2><button className="text-action" onClick={() => { setDrinkType(null); drinksDialog.current?.showModal() }}>Choose drink</button></div>

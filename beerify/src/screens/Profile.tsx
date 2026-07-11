@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { DRINKER_LEVELS, type AppData, type DrinkCategory, type DrinkIconId, type DrinkPreset, type DrinkerLevel, type Profile } from '../types'
 import { accountEnabled, currentSession, deleteCloudAccount, sendMagicLink, signOut, supabase, syncAccountData } from '../lib/account'
 import { newId } from '../lib/storage'
 import DrinkIcon from '../components/DrinkIcon'
+import { getPushState, retryPushNotifications, subscribePushState } from '../lib/notifications'
 
 interface Props {
   data: AppData
@@ -30,6 +31,7 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
   const [showPreset, setShowPreset] = useState(false)
   const [preset, setPreset] = useState({ name: '', brand: '', category: 'beer' as DrinkCategory, volume: '440', abv: '4.5' })
   const deleteDialog = useRef<HTMLDialogElement>(null)
+  const push = useSyncExternalStore(subscribePushState, getPushState, getPushState)
 
   useEffect(() => {
     currentSession().then(setSession)
@@ -93,6 +95,15 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
         <label className="field" htmlFor="profile-drinker-level"><span className="field__label">Pub experience</span><select id="profile-drinker-level" value={data.profile?.drinkerLevel ?? 'weekend'} onChange={(event) => data.profile && onUpdateProfile({ ...data.profile, drinkerLevel: event.target.value as DrinkerLevel })}>{DRINKER_LEVELS.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}</select></label>
         <div className="settings-row"><span><strong>Haptic taps</strong><small>Feel each drink land</small></span><input type="checkbox" role="switch" checked={data.preferences.haptics} onChange={(event) => onUpdatePreferences({ haptics: event.target.checked })} /></div>
         <div className="settings-row"><span><strong>Reduce motion</strong><small>Quieter countdowns and reactions</small></span><input type="checkbox" role="switch" checked={data.preferences.reducedMotion} onChange={(event) => onUpdatePreferences({ reducedMotion: event.target.checked })} /></div>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-heading"><h2>Room alerts</h2><span className={push.status === 'granted' ? 'status-badge status-badge--on' : 'status-badge'}>{push.status === 'granted' ? 'Enabled' : push.status === 'unsupported' ? 'iOS only' : 'Off'}</span></div>
+        {push.status === 'unsupported' ? <p>Push alerts are available in the installed iOS app. Live room countdowns still appear while this app is open.</p>
+          : push.status === 'denied' ? <p>Notifications are blocked. Open iOS Settings → Beerify → Notifications to enable Drink up and round alerts.</p>
+          : push.status === 'granted' ? <p>{push.error || 'Drink up countdowns and important round updates can reach you while Beerify is in the background.'}</p>
+          : <p>{push.error || 'Beerify is checking whether room alerts are available.'}</p>}
+        {(push.status === 'prompt' || push.status === 'error' || Boolean(push.error)) && <button className="btn btn--secondary" onClick={() => void retryPushNotifications()}>{push.status === 'granted' ? 'Retry room alerts' : 'Enable room alerts'}</button>}
       </section>
 
       <section className="settings-section">

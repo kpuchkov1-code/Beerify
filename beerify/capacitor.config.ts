@@ -14,6 +14,9 @@ const config: CapacitorConfig = {
       style: 'LIGHT',
       overlaysWebView: true,
     },
+    PushNotifications: {
+      presentationOptions: [],
+    },
   },
 }
 

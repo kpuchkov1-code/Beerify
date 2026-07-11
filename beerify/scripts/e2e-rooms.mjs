@@ -52,6 +52,20 @@ await ana.getByRole('heading', { name: 'How chaotic is tonight?' }).waitFor({ ti
 const roomCallout = (await ana.locator('.crew-callout strong').textContent())?.trim() ?? ''
 const code = roomCallout.match(/[A-Z2-9]{6}/)?.[0]
 await expect(`Ana got a room code (${code})`, /^[A-Z2-9]{6}$/.test(code ?? ''))
+const protocol = await ana.evaluate(async () => {
+  const membership = JSON.parse(localStorage.getItem('beerify:v2')).room
+  const post = (body) => fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...membership, ...body }) })
+  const registered = await post({ action: 'push-register', token: 'a'.repeat(64), environment: 'sandbox' })
+  const unregistered = await post({ action: 'push-unregister' })
+  const clientEventId = crypto.randomUUID()
+  const event = { action: 'event', type: 'reaction', reaction: 'cheers', clientEventId }
+  const first = await post(event)
+  const duplicate = await post(event)
+  const room = await fetch(`/api/room?code=${membership.code}`).then((response) => response.json())
+  return { registered: registered.status, unregistered: unregistered.status, first: first.status, duplicate: duplicate.status, copies: room.events.filter((item) => item.id === clientEventId).length }
+})
+await expect('push registration and removal authenticate successfully', protocol.registered === 200 && protocol.unregistered === 200)
+await expect('retried room events remain idempotent', protocol.first === 200 && protocol.duplicate === 200 && protocol.copies === 1)
 
 // Ben joins with the code.
 await ben.getByLabel('Room code').fill(code)

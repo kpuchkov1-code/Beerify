@@ -1,24 +1,26 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { AppData, DrinkPreset, LoggedDrink, MealState, NightSession, Profile, RoomMembership, RoomState, TargetId } from './types'
 import { logFromPreset, presetById, TARGETS } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
-import { currentSession, supabase, syncAccountData } from './lib/account'
-import { trackMetric } from './lib/room'
+import { registerRoomPush, trackMetric } from './lib/room'
+import { apnsEnvironment, getPushState, reportPushRegistrationError, subscribePushState } from './lib/notifications'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import NightOut from './screens/NightOut'
-import Summary from './screens/Summary'
 import Crew from './screens/Crew'
-import History from './screens/History'
-import ProfileScreen from './screens/Profile'
 import AppNav, { type AppTab } from './components/AppNav'
 import ActiveNightNav from './components/ActiveNightNav'
+
+const Summary = lazy(() => import('./screens/Summary'))
+const History = lazy(() => import('./screens/History'))
+const ProfileScreen = lazy(() => import('./screens/Profile'))
 
 const INITIAL_PARAMS = new URLSearchParams(location.search)
 const INITIAL_ROOM_CODE = /^[A-Z2-9]{6}$/.test(INITIAL_PARAMS.get('room')?.toUpperCase() ?? '')
   ? INITIAL_PARAMS.get('room')!.toUpperCase()
   : ''
 const OPENED_INVITE = INITIAL_PARAMS.get('via') === 'invite'
+const ACCOUNT_SYNC_CONFIGURED = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY)
 
 export default function App() {
   const [data, setData] = useState<AppData>(loadData)
@@ -38,11 +40,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const db = supabase()
-    if (!db) return
+    if (!ACCOUNT_SYNC_CONFIGURED) return
     let cancelled = false
     const timeout = setTimeout(async () => {
-      if (!(await currentSession())) return
+      const { accountEnabled, currentSession, syncAccountData } = await import('./lib/account')
+      if (!accountEnabled() || !(await currentSession())) return
       try {
         const merged = await syncAccountData(data)
         if (!cancelled && JSON.stringify(merged) !== JSON.stringify(data)) setData(merged)
@@ -52,6 +54,37 @@ export default function App() {
     }, 1_200)
     return () => { cancelled = true; clearTimeout(timeout) }
   }, [data])
+
+  useEffect(() => {
+    if (!data.room) return
+    let registeredToken = ''
+    const sync = async () => {
+      const push = getPushState()
+      if (!push.token || push.token === registeredToken) return
+      try {
+        await registerRoomPush(data.room!, push.token, apnsEnvironment)
+        registeredToken = push.token
+        reportPushRegistrationError(null)
+      } catch (error) {
+        reportPushRegistrationError(error instanceof Error ? `Room alerts could not connect: ${error.message}` : 'Room alerts could not connect')
+      }
+    }
+    void sync()
+    const unsubscribe = subscribePushState(() => { void sync() })
+    const resume = () => { registeredToken = ''; void sync() }
+    window.addEventListener('beerify:resume', resume)
+    return () => { unsubscribe(); window.removeEventListener('beerify:resume', resume) }
+  }, [data.room])
+
+  useEffect(() => {
+    const warm = () => { void import('./screens/History'); void import('./screens/Summary') }
+    if (typeof window.requestIdleCallback === 'function') {
+      const idle = window.requestIdleCallback(warm, { timeout: 4_000 })
+      return () => window.cancelIdleCallback(idle)
+    }
+    const timeout = globalThis.setTimeout(warm, 2_000)
+    return () => globalThis.clearTimeout(timeout)
+  }, [])
 
   function setProfile(profile: Profile) {
     setData((current) => ({ ...current, profile }))
@@ -188,7 +221,7 @@ export default function App() {
   if (!data.profile) return <Onboarding onDone={setProfile} />
 
   if (viewingSummary) {
-    return <Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} />
+    return <Suspense fallback={<main className="screen"><p className="empty-copy">Opening your recap…</p></main>}><Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} /></Suspense>
   }
 
   const content = tab === 'tonight'
@@ -203,7 +236,7 @@ export default function App() {
 
   return (
     <div className={data.session ? 'active-night-shell' : 'app-shell'}>
-      {content}
+      <Suspense fallback={<main className="screen"><p className="empty-copy">Opening…</p></main>}>{content}</Suspense>
       {data.session
         ? <ActiveNightNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />
         : <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />}

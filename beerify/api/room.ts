@@ -1,5 +1,7 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { Redis } from '@upstash/redis'
+import { waitUntil } from '@vercel/functions'
+import { planRoomPushes, sendPlannedPushes, type PushRegistration } from './apns'
 
 const ROOM_TTL_SECONDS = 24 * 60 * 60
 const MEMBER_LIMIT = 20
@@ -11,6 +13,7 @@ const STATUSES = new Set(['sober', 'warming', 'in-zone', 'over', 'way-over'])
 const REACTIONS = new Set(['cheers', 'on-my-way', 'get-another', 'scenes', 'water-run', 'food'])
 const EVENT_TYPES = new Set(['drink', 'reaction', 'cheers-countdown', 'round-invite', 'round-order', 'round-bought'])
 const ICONS = new Set(['pint', 'bottle', 'can', 'ipa', 'stout', 'cider', 'ale', 'wine-red', 'wine-white', 'sparkling', 'spirit', 'cocktail', 'shot', 'alcopop', 'zero'])
+const UUID = /^[0-9a-f-]{36}$/
 
 interface RoomMeta {
   code: string
@@ -162,6 +165,7 @@ function metaKey(code: string): string { return `beerify:room:${code}` }
 function membersKey(code: string): string { return `${metaKey(code)}:members` }
 function eventsKey(code: string): string { return `${metaKey(code)}:events` }
 function statsKey(code: string): string { return `${metaKey(code)}:stats` }
+function pushesKey(code: string): string { return `${metaKey(code)}:push` }
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -199,9 +203,12 @@ function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+function validId(value: unknown): value is string {
+  return typeof value === 'string' && UUID.test(value)
+}
+
 function validCredential(id: unknown, token: unknown): id is string {
-  return typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id)
-    && typeof token === 'string' && /^[0-9a-f-]{36}$/.test(token)
+  return validId(id) && validId(token)
 }
 
 function sanitizeMember(value: unknown, token: string): StoredMember | null {
@@ -309,6 +316,7 @@ async function refreshRoom(code: string): Promise<void> {
     db().expire(membersKey(code), ROOM_TTL_SECONDS),
     db().expire(eventsKey(code), ROOM_TTL_SECONDS),
     db().expire(statsKey(code), ROOM_TTL_SECONDS),
+    db().expire(pushesKey(code), ROOM_TTL_SECONDS),
   ])
 }
 
@@ -323,6 +331,18 @@ async function addEvent(code: string, event: StoredEvent): Promise<void> {
   const count = await db().zcard(key)
   if (count > EVENT_LIMIT) await db().zremrangebyrank(key, 0, count - EVENT_LIMIT - 1)
   await db().expire(key, ROOM_TTL_SECONDS)
+}
+
+async function sendEventPush(code: string, event: StoredEvent, buyerId?: string): Promise<void> {
+  const registrations = await db().hgetall<Record<string, PushRegistration>>(pushesKey(code)) ?? {}
+  const pushes = planRoomPushes(code, event, registrations, buyerId)
+  const invalid = await sendPlannedPushes(pushes)
+  if (invalid.length) await db().hdel(pushesKey(code), ...invalid)
+}
+
+function runAfterResponse(task: Promise<void>): void {
+  const safe = task.catch((error) => console.error('Room notification failed', error instanceof Error ? error.message : 'unknown error'))
+  try { waitUntil(safe) } catch { void safe }
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -409,6 +429,29 @@ export async function POST(request: Request): Promise<Response> {
       return json(200, await buildRoom(code))
     }
 
+    if (payload.action === 'push-register') {
+      const code = normalizeCode(payload.code)
+      const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
+      const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
+      const token = typeof payload.token === 'string' && /^[a-f0-9]{32,256}$/i.test(payload.token) ? payload.token.toLowerCase() : ''
+      const environment = payload.environment === 'sandbox' ? 'sandbox' : payload.environment === 'production' ? 'production' : null
+      if (!code || !token || !environment || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid push registration' })
+      if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
+      await db().hset(pushesKey(code), { [memberId]: { token, environment } })
+      await refreshRoom(code)
+      return json(200, { ok: true })
+    }
+
+    if (payload.action === 'push-unregister') {
+      const code = normalizeCode(payload.code)
+      const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
+      const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
+      if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid push registration' })
+      if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
+      await db().hdel(pushesKey(code), memberId)
+      return json(200, { ok: true })
+    }
+
     if (payload.action === 'event') {
       const code = normalizeCode(payload.code)
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
@@ -418,15 +461,22 @@ export async function POST(request: Request): Promise<Response> {
       const member = await authenticate(code, memberId, memberToken)
       if (!member) return json(403, { error: 'Room credentials were rejected' })
       const events = await readEvents(code)
-      const latest = [...events].reverse().find((event) => event.actorId === memberId)
-      if (latest && Date.now() - latest.at < 5_000) return json(429, { error: 'Give the room a second' })
+      const clientEventId = validId(payload.clientEventId) ? payload.clientEventId : null
+      if (clientEventId && events.some((event) => event.id === clientEventId && event.actorId === memberId)) return json(200, await buildRoom(code))
+      const now = Date.now()
+      if (type === 'reaction' && events.some((event) => event.type === type && event.actorId === memberId && now - event.at < 750)) return json(429, { error: 'Give that reaction a second' })
+      if (type === 'cheers-countdown' && events.some((event) => event.type === type && now - event.at < 5_000)) return json(429, { error: 'A drink-up countdown just started' })
+      const round = activeRound(events)
+      if (type === 'round-invite' && round) return json(409, { error: 'A round is already open' })
+      if ((type === 'round-order' || type === 'round-bought') && (!round || payload.refId !== round.id)) return json(409, { error: 'That round is no longer open' })
+      if (type === 'round-bought' && round?.buyerId !== memberId) return json(403, { error: 'Only the round buyer can close it' })
 
       const event: StoredEvent = {
-        id: randomUUID(),
+        id: clientEventId ?? randomUUID(),
         type,
         actorId: member.id,
         actorName: member.name,
-        at: Date.now(),
+        at: now,
         refId: cleanText(payload.refId, 80) ?? undefined,
         text: cleanText(payload.text, 80) ?? undefined,
       }
@@ -434,7 +484,7 @@ export async function POST(request: Request): Promise<Response> {
         if (typeof payload.reaction !== 'string' || !REACTIONS.has(payload.reaction)) return json(400, { error: 'Unknown reaction' })
         event.reaction = payload.reaction
       }
-      if (type === 'cheers-countdown') event.startsAt = Date.now() + 8_000
+      if (type === 'cheers-countdown') event.startsAt = now + 8_000
       if (type === 'round-invite') event.refId = event.id
       if (type === 'round-order' && !event.refId) return json(400, { error: 'Choose an active round' })
       if (type === 'drink') {
@@ -449,7 +499,9 @@ export async function POST(request: Request): Promise<Response> {
       if (type === 'reaction') await db().hincrby(statsKey(code), `${member.id}:reactions`, 1)
       if (type === 'round-bought') await db().hincrby(statsKey(code), `${member.id}:rounds`, 1)
       await refreshRoom(code)
-      return json(200, await buildRoom(code))
+      const room = await buildRoom(code)
+      runAfterResponse(sendEventPush(code, event, round?.buyerId))
+      return json(200, room)
     }
 
     if (payload.action === 'leave') {
@@ -458,7 +510,7 @@ export async function POST(request: Request): Promise<Response> {
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid room credentials' })
       if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
-      await db().hdel(membersKey(code), memberId)
+      await Promise.all([db().hdel(membersKey(code), memberId), db().hdel(pushesKey(code), memberId)])
       return json(200, { ok: true })
     }
 

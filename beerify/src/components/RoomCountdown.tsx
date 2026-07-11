@@ -12,8 +12,16 @@ export default function RoomCountdown({ events }: Props) {
 
   useEffect(() => {
     if (!countdown?.startsAt) return
-    const id = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(id)
+    let id: ReturnType<typeof setInterval> | null = null
+    const update = () => {
+      if (id) clearInterval(id)
+      id = null
+      setNow(Date.now())
+      if (!document.hidden) id = setInterval(() => setNow(Date.now()), 250)
+    }
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => { if (id) clearInterval(id); document.removeEventListener('visibilitychange', update) }
   }, [countdown?.startsAt])
 
   if (countdownNumber === null) return null

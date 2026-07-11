@@ -12,7 +12,7 @@ export default function DrinkIcon({ icon, size = 42, title, logoUrl, brand }: Pr
   if (logoUrl && brand) {
     return (
       <span className="brand-artwork" style={{ width: size, height: size }} title={title ?? brand} aria-hidden="true">
-        <img src={logoUrl} width={size} height={size} alt="" onError={(event) => { event.currentTarget.hidden = true; (event.currentTarget.nextElementSibling as HTMLElement).hidden = false }} />
+        <img src={logoUrl} width={size} height={size} alt="" loading="lazy" decoding="async" onLoad={(event) => { (event.currentTarget.nextElementSibling as HTMLElement).hidden = true }} onError={(event) => { event.currentTarget.hidden = true; (event.currentTarget.nextElementSibling as HTMLElement).hidden = false }} />
         <span hidden>{brand.slice(0, 1)}</span>
       </span>
     )

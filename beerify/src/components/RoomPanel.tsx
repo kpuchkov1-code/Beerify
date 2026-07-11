@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import QRCode from 'qrcode'
 import type { LeaderboardMetric, LeaderboardMode, NightSession, Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
 import { TARGET_ORDER, TARGETS } from '../lib/drinks'
 import { configureRoom, createRoom, inviteUrl, joinRoom, leaveRoom, sendRoomEvent, trackMetric, useRoom } from '../lib/room'
@@ -73,6 +72,7 @@ function timeAgo(at: number): string {
 export default function RoomPanel({ profile, membership, session, initialCode = '', onJoin, onLeave, onOpenTonight }: Props) {
   const [joinCode, setJoinCode] = useState(initialCode)
   const [busy, setBusy] = useState(false)
+  const [eventBusy, setEventBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState('')
   const [order, setOrder] = useState('')
@@ -87,10 +87,15 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
     : null
   const hasLeaderboardEntries = Boolean(room && Object.values(room.leaderboard.categories).some((entries) => entries?.length))
 
-  useEffect(() => {
-    if (!membership) return
-    QRCode.toDataURL(inviteUrl(membership.code), { width: 260, margin: 1, color: { dark: '#10241cff', light: '#f7f7f4ff' } }).then(setQr).catch(() => {})
-  }, [membership])
+  useEffect(() => { setQr('') }, [membership])
+
+  async function loadQr(open: boolean) {
+    if (!open || qr || !membership) return
+    try {
+      const { default: QRCode } = await import('qrcode')
+      setQr(await QRCode.toDataURL(inviteUrl(membership.code), { width: 260, margin: 1, color: { dark: '#10241cff', light: '#f7f7f4ff' } }))
+    } catch { setError('Could not make the invite QR') }
+  }
 
   async function handleCreate() {
     setBusy(true); setError(null)
@@ -116,11 +121,13 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
     } finally { setBusy(false) }
   }
 
-  async function emit(type: Parameters<typeof sendRoomEvent>[1], detail?: Parameters<typeof sendRoomEvent>[2]) {
-    if (!membership) return
+  async function emit(type: Parameters<typeof sendRoomEvent>[1], detail?: Parameters<typeof sendRoomEvent>[2]): Promise<boolean> {
+    if (!membership || eventBusy) return false
     setError(null)
-    try { await sendRoomEvent(membership, type, detail); refresh() }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'The room missed that') }
+    setEventBusy(type)
+    try { await sendRoomEvent(membership, type, detail); await refresh(); return true }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'The room missed that'); return false }
+    finally { setEventBusy(null) }
   }
 
   async function handleShare() {
@@ -215,11 +222,11 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
         <div className="section-heading"><h2>Make some noise</h2></div>
         {suggestedBuyer && <p className="ritual-panel__rota"><strong>Round rota:</strong> {suggestedBuyer.name} is up next · {room?.roundRota.length ?? 0} bought so far</p>}
         <div className="reaction-grid">
-          {REACTIONS.map((reaction) => <button key={reaction.id} onClick={() => emit('reaction', { reaction: reaction.id })}><span aria-hidden="true">{reaction.icon}</span><small>{reaction.label}</small></button>)}
+          {REACTIONS.map((reaction) => <button key={reaction.id} disabled={Boolean(eventBusy)} aria-busy={eventBusy === 'reaction'} onClick={() => void emit('reaction', { reaction: reaction.id })}><span aria-hidden="true">{reaction.icon}</span><small>{reaction.label}</small></button>)}
         </div>
         <div className="ritual-actions">
-          <button className="btn btn--secondary" onClick={() => emit('cheers-countdown')}>🍻 Drink up in 8</button>
-          <button className="btn btn--primary" disabled={Boolean(room?.activeRound)} onClick={() => emit('round-invite')}>Open next round</button>
+          <button className="btn btn--secondary" disabled={Boolean(eventBusy)} aria-busy={eventBusy === 'cheers-countdown'} onClick={() => void emit('cheers-countdown')}>{eventBusy === 'cheers-countdown' ? 'Calling drink up…' : '🍻 Drink up in 8'}</button>
+          <button className="btn btn--primary" disabled={Boolean(room?.activeRound || eventBusy)} aria-busy={eventBusy === 'round-invite'} onClick={() => void emit('round-invite')}>{eventBusy === 'round-invite' ? 'Opening round…' : 'Open next round'}</button>
         </div>
       </section>
 
@@ -228,9 +235,9 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
           <div className="section-heading"><h2>{room.activeRound.buyerName}'s round</h2><span>OPEN</span></div>
           <ul>{room.activeRound.orders.map((item) => <li key={item.memberId}><strong>{item.memberName}</strong><span>{item.order}</span></li>)}</ul>
           {room.activeRound.buyerId === membership.memberId ? (
-            <button className="btn btn--primary" onClick={() => emit('round-bought', { refId: room.activeRound!.id })}>Mark round bought</button>
+            <button className="btn btn--primary" disabled={Boolean(eventBusy)} aria-busy={eventBusy === 'round-bought'} onClick={() => void emit('round-bought', { refId: room.activeRound!.id })}>Mark round bought</button>
           ) : (
-            <div className="round-order"><label htmlFor="round-order">Your order</label><div><input id="round-order" value={order} maxLength={80} placeholder="Pint of lager" onChange={(event) => setOrder(event.target.value)} /><button className="btn btn--secondary" disabled={!order.trim()} onClick={() => { emit('round-order', { refId: room.activeRound!.id, text: order }); setOrder('') }}>Send</button></div></div>
+            <div className="round-order"><label htmlFor="round-order">Your order</label><div><input id="round-order" value={order} maxLength={80} placeholder="Pint of lager" onChange={(event) => setOrder(event.target.value)} /><button className="btn btn--secondary" disabled={!order.trim() || Boolean(eventBusy)} aria-busy={eventBusy === 'round-order'} onClick={async () => { if (await emit('round-order', { refId: room.activeRound!.id, text: order })) setOrder('') }}>Send</button></div></div>
           )}
         </section>
       )}
@@ -256,7 +263,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
             event.preventDefault()
             const form = new FormData(event.currentTarget)
             const labels = Object.fromEntries(TARGET_ORDER.map((id) => [id, String(form.get(id) ?? '')])) as Record<TargetId, string>
-            try { await configureRoom(membership, { name: String(form.get('name') ?? room.name), theme: String(form.get('theme')) as 'green' | 'red' | 'blue', labels, leaderboardMode: String(form.get('leaderboardMode')) as LeaderboardMode }); refresh() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save room settings') }
+            try { await configureRoom(membership, { name: String(form.get('name') ?? room.name), theme: String(form.get('theme')) as 'green' | 'red' | 'blue', labels, leaderboardMode: String(form.get('leaderboardMode')) as LeaderboardMode }); await refresh() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save room settings') }
           }}>
             <label className="field"><span className="field__label">Room name</span><input name="name" defaultValue={room.name} maxLength={36} /></label>
             <label className="field"><span className="field__label">Room colour</span><select name="theme" defaultValue={room.theme}><option value="green">Bottle green</option><option value="red">Pub red</option><option value="blue">Electric blue</option></select></label>
@@ -267,8 +274,8 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
         </details>
       )}
 
-      <details className="qr-panel"><summary>Show invite QR</summary>{qr && <img src={qr} alt={`QR code for Beerify room ${membership.code}`} />}</details>
-      <button className="danger-link" onClick={() => { leaveRoom(membership).catch(() => {}); onLeave() }}>Leave room</button>
+      <details className="qr-panel" onToggle={(event) => void loadQr(event.currentTarget.open)}><summary>Show invite QR</summary>{qr && <img src={qr} alt={`QR code for Beerify room ${membership.code}`} />}</details>
+      <button className="danger-link" disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await leaveRoom(membership); onLeave() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not leave the room') } finally { setBusy(false) } }}>Leave room</button>
     </div>
   )
 }
