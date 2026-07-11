@@ -1,5 +1,5 @@
 /**
- * Generates public/icon.png (512x512) without any dependencies:
+ * Generates the 1024px PWA/iOS icon sources without any dependencies:
  * a warm amber "beer glass" tile with a foam cap and rising bubbles.
  * Run with: node scripts/gen-icon.mjs
  */
@@ -8,7 +8,8 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const SIZE = 512
+const SIZE = 1024
+const SCALE = SIZE / 512
 const px = new Uint8Array(SIZE * SIZE * 4)
 
 const BG_TOP = [255, 214, 121]
@@ -30,22 +31,22 @@ function roundedRectMask(x, y, size, radius) {
 
 const foamCircles = []
 for (let i = 0; i <= 8; i++) {
-  foamCircles.push({ x: (i / 8) * SIZE, y: 118 + (i % 2) * 26, r: 58 + (i % 3) * 10 })
+  foamCircles.push({ x: (i / 8) * SIZE, y: (118 + (i % 2) * 26) * SCALE, r: (58 + (i % 3) * 10) * SCALE })
 }
 
 const bubbles = [
-  { x: 150, y: 300, r: 16 },
-  { x: 340, y: 260, r: 12 },
-  { x: 250, y: 380, r: 20 },
-  { x: 400, y: 400, r: 14 },
-  { x: 110, y: 430, r: 11 },
+  { x: 150 * SCALE, y: 300 * SCALE, r: 16 * SCALE },
+  { x: 340 * SCALE, y: 260 * SCALE, r: 12 * SCALE },
+  { x: 250 * SCALE, y: 380 * SCALE, r: 20 * SCALE },
+  { x: 400 * SCALE, y: 400 * SCALE, r: 14 * SCALE },
+  { x: 110 * SCALE, y: 430 * SCALE, r: 11 * SCALE },
 ]
 
 for (let y = 0; y < SIZE; y++) {
   for (let x = 0; x < SIZE; x++) {
     const i = (y * SIZE + x) * 4
-    if (!roundedRectMask(x, y, SIZE, 110)) {
-      px[i + 3] = 0
+    if (!roundedRectMask(x, y, SIZE, 110 * SCALE)) {
+      px[i] = 16; px[i + 1] = 36; px[i + 2] = 28; px[i + 3] = 255
       continue
     }
     const t = y / SIZE
@@ -114,7 +115,9 @@ const png = Buffer.concat([
   chunk('IEND', Buffer.alloc(0)),
 ])
 
-const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icon.png')
-mkdirSync(dirname(out), { recursive: true })
-writeFileSync(out, png)
-console.log(`wrote ${out} (${png.length} bytes)`)
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+for (const out of [join(root, 'public', 'icon.png'), join(root, 'assets', 'icon-only.png')]) {
+  mkdirSync(dirname(out), { recursive: true })
+  writeFileSync(out, png)
+  console.log(`wrote ${out} (${png.length} bytes)`)
+}

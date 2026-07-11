@@ -1,115 +1,179 @@
 import { useEffect, useState } from 'react'
-import type {
-  AppData,
-  DrinkTypeId,
-  NightSession,
-  Profile,
-  RoomMembership,
-  TargetId,
-} from './types'
-import { DRINK_TYPES, gramsOfAlcohol, unitsOfAlcohol } from './lib/drinks'
+import type { AppData, DrinkPreset, LoggedDrink, NightSession, Profile, RoomMembership, RoomState, TargetId } from './types'
+import { logFromPreset, presetById } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
+import { currentSession, supabase, syncAccountData } from './lib/account'
+import { trackMetric } from './lib/room'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import NightOut from './screens/NightOut'
 import Summary from './screens/Summary'
+import Crew from './screens/Crew'
+import History from './screens/History'
+import ProfileScreen from './screens/Profile'
+import AppNav, { type AppTab } from './components/AppNav'
+
+const INITIAL_PARAMS = new URLSearchParams(location.search)
+const INITIAL_ROOM_CODE = /^[A-Z2-9]{6}$/.test(INITIAL_PARAMS.get('room')?.toUpperCase() ?? '')
+  ? INITIAL_PARAMS.get('room')!.toUpperCase()
+  : ''
+const OPENED_INVITE = INITIAL_PARAMS.get('via') === 'invite'
 
 export default function App() {
   const [data, setData] = useState<AppData>(loadData)
   const [viewingSummary, setViewingSummary] = useState<NightSession | null>(null)
+  const invitedCode = INITIAL_ROOM_CODE
+  const [tab, setTab] = useState<AppTab>(invitedCode ? 'crew' : 'tonight')
+  const screenKey = !data.profile ? 'setup' : viewingSummary?.id ?? (data.session ? 'night' : tab)
+
+  useEffect(() => saveData(data), [data])
 
   useEffect(() => {
-    saveData(data)
+    window.scrollTo({ top: 0, left: 0 })
+  }, [screenKey])
+
+  useEffect(() => {
+    if (OPENED_INVITE) trackMetric('invite_opened')
+  }, [])
+
+  useEffect(() => {
+    const db = supabase()
+    if (!db) return
+    let cancelled = false
+    const timeout = setTimeout(async () => {
+      if (!(await currentSession())) return
+      try {
+        const merged = await syncAccountData(data)
+        if (!cancelled && JSON.stringify(merged) !== JSON.stringify(data)) setData(merged)
+      } catch {
+        // Local data remains authoritative when optional sync is offline.
+      }
+    }, 1_200)
+    return () => { cancelled = true; clearTimeout(timeout) }
   }, [data])
 
   function setProfile(profile: Profile) {
-    setData((d) => ({ ...d, profile }))
+    setData((current) => ({ ...current, profile }))
+  }
+
+  function updateProfile(profile: Profile) {
+    setData((current) => ({ ...current, profile: { ...profile, updatedAt: Date.now() } }))
   }
 
   function startNight(targetId: TargetId) {
-    setData((d) => ({
-      ...d,
-      session: {
-        id: newId(),
-        startedAt: Date.now(),
-        targetId,
-        drinks: [],
-        waters: [],
-      },
+    const now = Date.now()
+    setData((current) => ({
+      ...current,
+      session: { id: newId(), startedAt: now, updatedAt: now, targetId, drinks: [], waters: [] },
+      preferences: { ...current.preferences, lastTargetId: targetId, updatedAt: now },
     }))
   }
 
-  function logDrink(type: DrinkTypeId) {
-    const def = DRINK_TYPES[type]
-    setData((d) => {
-      if (!d.session) return d
+  function logDrink(presetId: string): LoggedDrink | null {
+    if (!data.session) return null
+    const preset = presetById(presetId, data.preferences.customPresets)
+    if (!preset) return null
+    const now = Date.now()
+    const logged = logFromPreset(preset, newId(), now)
+    const first = data.session.drinks.length === 0
+    setData((current) => {
+      if (!current.session) return current
       return {
-        ...d,
+        ...current,
         session: {
-          ...d.session,
-          drinks: [
-            ...d.session.drinks,
-            {
-              id: newId(),
-              type,
-              at: Date.now(),
-              units: unitsOfAlcohol(def),
-              grams: gramsOfAlcohol(def),
-            },
-          ],
+          ...current.session,
+          updatedAt: now,
+          drinks: [...current.session.drinks, logged],
+        },
+        preferences: {
+          ...current.preferences,
+          recentPresetIds: [presetId, ...current.preferences.recentPresetIds.filter((id) => id !== presetId)].slice(0, 8),
+          updatedAt: now,
         },
       }
     })
+    if (first) trackMetric('first_drink')
+    return logged
   }
 
   function logWater() {
-    setData((d) =>
-      d.session ? { ...d, session: { ...d.session, waters: [...d.session.waters, Date.now()] } } : d,
-    )
+    const now = Date.now()
+    setData((current) => current.session ? {
+      ...current,
+      session: { ...current.session, updatedAt: now, waters: [...current.session.waters, now] },
+    } : current)
   }
 
   function undoDrink() {
-    setData((d) =>
-      d.session
-        ? { ...d, session: { ...d.session, drinks: d.session.drinks.slice(0, -1) } }
-        : d,
-    )
+    setData((current) => current.session ? {
+      ...current,
+      session: { ...current.session, updatedAt: Date.now(), drinks: current.session.drinks.slice(0, -1) },
+    } : current)
   }
 
-  function endNight() {
-    setData((d) => {
-      if (!d.session) return d
-      const ended = { ...d.session, endedAt: Date.now() }
-      return { ...d, session: null, history: [...d.history, ended] }
+  function endNight(room?: RoomState | null) {
+    setData((current) => {
+      if (!current.session) return current
+      const now = Date.now()
+      const ended = {
+        ...current.session,
+        roomName: room?.name,
+        roomEvents: room?.events,
+        endedAt: now,
+        updatedAt: now,
+      }
+      return { ...current, session: null, history: [...current.history, ended] }
     })
+    setTab('history')
   }
 
   function joinRoom(room: RoomMembership) {
-    setData((d) => ({ ...d, room }))
+    setData((current) => ({ ...current, room }))
   }
 
   function leaveRoom() {
-    setData((d) => ({ ...d, room: null }))
+    setData((current) => ({ ...current, room: null }))
+  }
+
+  function updatePreset(preset: DrinkPreset) {
+    setData((current) => {
+      const customPresets = [preset, ...current.preferences.customPresets.filter((item) => item.id !== preset.id)]
+      return { ...current, preferences: { ...current.preferences, customPresets, updatedAt: Date.now() } }
+    })
+  }
+
+  function toggleFavorite(presetId: string) {
+    setData((current) => {
+      const favorites = current.preferences.favoritePresetIds.includes(presetId)
+        ? current.preferences.favoritePresetIds.filter((id) => id !== presetId)
+        : [presetId, ...current.preferences.favoritePresetIds].slice(0, 8)
+      return { ...current, preferences: { ...current.preferences, favoritePresetIds: favorites, updatedAt: Date.now() } }
+    })
+  }
+
+  function updatePreferences(values: Partial<AppData['preferences']>) {
+    setData((current) => ({
+      ...current,
+      preferences: { ...current.preferences, ...values, updatedAt: Date.now() },
+    }))
   }
 
   function openSummary(session: NightSession) {
     setViewingSummary(session)
     if (!session.reviewedAt) {
-      setData((d) => ({
-        ...d,
-        history: d.history.map((s) => (s.id === session.id ? { ...s, reviewedAt: Date.now() } : s)),
+      setData((current) => ({
+        ...current,
+        history: current.history.map((item) => item.id === session.id
+          ? { ...item, reviewedAt: Date.now(), updatedAt: Date.now() }
+          : item),
       }))
     }
   }
 
-  if (!data.profile) {
-    return <Onboarding onDone={setProfile} />
-  }
+  if (!data.profile) return <Onboarding onDone={setProfile} />
 
   if (viewingSummary) {
-    return (
-      <Summary session={viewingSummary} profile={data.profile} onClose={() => setViewingSummary(null)} />
-    )
+    return <Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} />
   }
 
   if (data.session) {
@@ -117,28 +181,30 @@ export default function App() {
       <NightOut
         session={data.session}
         profile={data.profile}
+        preferences={data.preferences}
         membership={data.room}
         onLogDrink={logDrink}
         onLogWater={logWater}
         onUndo={undoDrink}
         onEndNight={endNight}
+        onToggleFavorite={toggleFavorite}
+        onSavePreset={updatePreset}
       />
     )
   }
 
-  const unreviewed =
-    [...data.history].sort((a, b) => b.startedAt - a.startedAt).find((s) => !s.reviewedAt) ?? null
+  const content = tab === 'tonight'
+    ? <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
+    : tab === 'crew'
+      ? <Crew profile={data.profile} membership={data.room} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} />
+      : tab === 'history'
+        ? <History history={data.history} onOpenSummary={openSummary} />
+        : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />
 
   return (
-    <Home
-      profile={data.profile}
-      history={data.history}
-      unreviewed={unreviewed}
-      membership={data.room}
-      onStartNight={startNight}
-      onOpenSummary={openSummary}
-      onJoinRoom={joinRoom}
-      onLeaveRoom={leaveRoom}
-    />
+    <div className="app-shell">
+      {content}
+      <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />
+    </div>
   )
 }

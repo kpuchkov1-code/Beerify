@@ -1,28 +1,7 @@
-import type { LoggedDrink, Profile, Sex, Tolerance } from '../types'
-import { DRINK_TYPES } from './drinks'
+import type { LoggedDrink, Profile, Sex } from '../types'
 
-/**
- * Widmark-based BAC estimation with gradual absorption.
- *
- * Each drink's alcohol enters the bloodstream over an ease-out absorption
- * window, while the liver eliminates at a constant rate (beta). This gives a
- * smooth, realistic curve instead of instant spikes.
- */
-
-/**
- * % BAC eliminated per hour. Regular drinkers develop metabolic tolerance and
- * clear alcohol measurably faster (published range roughly 0.012 to 0.022).
- */
-const BETA_BY_TOLERANCE: Record<Tolerance, number> = {
-  rare: 0.012,
-  monthly: 0.015,
-  weekly: 0.017,
-  frequent: 0.02,
-}
-
-function betaPerHour(profile: Profile): number {
-  return BETA_BY_TOLERANCE[profile.tolerance] ?? 0.015
-}
+/** Conservative fixed rate; prior drinking frequency no longer lowers estimates. */
+const BETA_PER_HOUR = 0.012
 
 function widmarkR(sex: Sex): number {
   if (sex === 'male') return 0.68
@@ -30,16 +9,10 @@ function widmarkR(sex: Sex): number {
   return 0.615
 }
 
-/** Peak BAC contribution (%) of `grams` of ethanol for this body. */
 function bacFromGrams(grams: number, profile: Profile): number {
   return (grams / (profile.weightKg * 1000 * widmarkR(profile.sex))) * 100
 }
 
-/**
- * Fraction of a drink absorbed `elapsedMin` minutes after it was logged.
- * Ease-out curve: alcohol shows up in the blood within minutes of a sip and
- * the tail of absorption is slow, which matches how drinks actually feel.
- */
 function absorbedFraction(elapsedMin: number, absorptionMin: number): number {
   if (elapsedMin <= 0) return 0
   if (elapsedMin >= absorptionMin) return 1
@@ -47,47 +20,66 @@ function absorbedFraction(elapsedMin: number, absorptionMin: number): number {
   return 1 - (1 - x) * (1 - x)
 }
 
-/**
- * Estimate BAC (%) at time `at` given drinks so far.
- *
- * Elimination is applied to the total absorbed alcohol: the liver processes a
- * fixed amount per hour starting once alcohol is present. We approximate by
- * integrating in 1-minute steps from the first drink, with elimination scaled
- * to the actual elapsed time of each step (this is a guide, never a legal
- * measure).
- */
-export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number): number {
+function simulate(
+  drinks: LoggedDrink[],
+  profile: Profile,
+  until: number,
+  visit?: (at: number, bac: number) => void,
+): number {
   if (drinks.length === 0) return 0
   const sorted = [...drinks].sort((a, b) => a.at - b.at)
   const start = sorted[0].at
-  if (at <= start) return 0
+  if (until <= start) return 0
 
-  const stepMs = 60 * 1000
+  const stepMs = 60_000
   let bac = 0
-  let prevAbsorbed = 0
-  let prev = start
+  let previousAbsorbed = 0
+  let previous = start
 
-  for (let t = start; t < at; ) {
-    t = Math.min(t + stepMs, at)
-    const dtHours = (t - prev) / 3_600_000
-
+  for (let at = start; at < until; ) {
+    at = Math.min(at + stepMs, until)
     let absorbed = 0
-    for (const d of sorted) {
-      if (d.at > t) continue
-      const type = DRINK_TYPES[d.type]
-      const frac = absorbedFraction((t - d.at) / 60_000, type.absorptionMin)
-      absorbed += bacFromGrams(d.grams * frac, profile)
+    for (const drink of sorted) {
+      if (drink.at > at) break
+      const fraction = absorbedFraction((at - drink.at) / stepMs, drink.absorptionMin)
+      absorbed += bacFromGrams(drink.grams * fraction, profile)
     }
-
-    bac = Math.max(0, bac + (absorbed - prevAbsorbed) - betaPerHour(profile) * dtHours)
-    prevAbsorbed = absorbed
-    prev = t
+    const elapsedHours = (at - previous) / 3_600_000
+    bac = Math.max(0, bac + absorbed - previousAbsorbed - BETA_PER_HOUR * elapsedHours)
+    previousAbsorbed = absorbed
+    previous = at
+    visit?.(at, bac)
   }
-
   return bac
 }
 
-/** BAC trend over the next `minutes` if no more drinks are logged. */
+export function estimateBac(drinks: LoggedDrink[], profile: Profile, at: number): number {
+  return simulate(drinks, profile, at)
+}
+
+/** A single chronological pass used by summaries and projections. */
+export function bacTimeline(
+  drinks: LoggedDrink[],
+  profile: Profile,
+  from: number,
+  to: number,
+  sampleMinutes = 5,
+): { at: number; bac: number }[] {
+  if (to < from) return []
+  const result: { at: number; bac: number }[] = []
+  let next = from
+  let lastAt = -1
+  simulate(drinks, profile, to, (at, bac) => {
+    if (at >= next) {
+      result.push({ at, bac })
+      lastAt = at
+      next = at + sampleMinutes * 60_000
+    }
+  })
+  if (lastAt !== to) result.push({ at: to, bac: estimateBac(drinks, profile, to) })
+  return result
+}
+
 export function projectBac(
   drinks: LoggedDrink[],
   profile: Profile,
@@ -97,32 +89,36 @@ export function projectBac(
   return estimateBac(drinks, profile, from + minutes * 60_000)
 }
 
-/** Highest BAC reached in the next `horizonMin` minutes with no further drinks. */
 export function peakBacAhead(
   drinks: LoggedDrink[],
   profile: Profile,
   from: number,
   horizonMin: number,
 ): number {
-  let peak = 0
-  for (let m = 0; m <= horizonMin; m += 5) {
-    peak = Math.max(peak, estimateBac(drinks, profile, from + m * 60_000))
-  }
-  return peak
+  const points = bacTimeline(drinks, profile, from, from + horizonMin * 60_000, 1)
+  return points.reduce((peak, point) => Math.max(peak, point.bac), 0)
 }
 
-/** Minutes until BAC drops to `targetBac` with no further drinks (capped at 12h). */
+export function fullyAbsorbedAt(drinks: LoggedDrink[], fallback: number): number {
+  return drinks.reduce(
+    (latest, drink) => Math.max(latest, drink.at + drink.absorptionMin * 60_000),
+    fallback,
+  )
+}
+
+/** Minutes until the estimate is below target after all logged alcohol has landed. */
 export function minutesUntilBac(
   drinks: LoggedDrink[],
   profile: Profile,
   from: number,
   targetBac: number,
 ): number {
-  const step = 10
-  for (let m = 0; m <= 720; m += step) {
-    if (estimateBac(drinks, profile, from + m * 60_000) <= targetBac) return m
-  }
-  return 720
+  if (drinks.length === 0) return 0
+  const declineStartsAt = Math.max(from, fullyAbsorbedAt(drinks, from))
+  const bacAtDecline = estimateBac(drinks, profile, declineStartsAt)
+  const absorptionWait = (declineStartsAt - from) / 60_000
+  const eliminationWait = Math.max(0, bacAtDecline - targetBac) / BETA_PER_HOUR * 60
+  return Math.ceil(absorptionWait + eliminationWait)
 }
 
 export function formatBac(bac: number): string {

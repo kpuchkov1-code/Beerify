@@ -1,74 +1,75 @@
-# 🍺 Beerify
+# Beerify
 
-**Your friendly AI drinking buddy.** Pick how merry you want to get, tap giant emoji
-buttons as you drink, and Beerify's coach keeps you right in your sweet spot — not
-past it. The next morning it hands you a sunny recap of your units.
+Beerify is a mobile-first social app for nights out. Open a private room, share a six-character code or QR link, log the order, react to friends, organise rounds and publish a recap when the tab closes.
 
-Built mobile-first for iPhone. Works great added to the Home Screen (PWA manifest +
-apple touch icon included).
+## What ships
 
-## Features
-
-- **Vibe picker**: choose your target zone from five stages: Light glow 🙂,
-  Gentle buzz 😊, Happily tipsy 😄, Properly merry 🥳, or Big night 🤪. Each maps
-  to an estimated BAC band.
-- **Night Out mode**: huge one-tap buttons for 🍺 Beer, 🥃 Shot, 🍷 Wine and
-  🍹 Cocktail (plus 💧 Water breaks), with haptic feedback and undo.
-- **Animated beer mug**: an SVG mug that fills as your estimated BAC rises, with
-  a rolling wave surface, foam, bubbles, your target zone drawn on the glass, and
-  a ghost fill for alcohol that is still absorbing.
-- **Live AI coach**: a rule-based assistant reads your estimated BAC curve, your
-  pacing, and your hydration, then tells you whether to sip, cruise, or switch to
-  water. If you go far past your zone it pauses drink logging entirely.
-- **Rooms**: create a room, share the 4-character code, and see how merry your
-  friends are (status, drink count, units, and a mini mug) all night. Backed by a
-  serverless API on Vercel Edge Config; no accounts needed.
-- **Morning-after summary**: total units, drink breakdown, peak BAC and when it
-  happened, water breaks, an estimated all-clear time, and a friendly verdict on
-  how well you held your zone.
-- **History**: past nights with their unit totals, all stored locally on-device
-  (`localStorage`).
-
-## The science-ish bits
-
-- Estimates use the **Widmark formula** with ease-out per-drink absorption
-  windows, personalised by weight, body type, and drinking frequency collected at
-  onboarding (regular drinkers clear alcohol faster: elimination is tuned from
-  0.012 to 0.020 %BAC/hour by tolerance).
-- Units are **UK units** (1 unit = 8 g / 10 ml of pure ethanol).
-- These are population-average estimates for pacing yourself, **never** a legal or
-  medical measurement. Never drink and drive.
-
-## Rooms backend
-
-`api/room.ts` is a Vercel serverless function storing room state in **Vercel
-Edge Config**: reads go through the unlimited data-plane endpoint, writes through
-the management API (rate-limit tolerant; each member only writes their own key,
-so squad updates never clobber each other). It needs these project env vars:
-
-| Var | Value |
-| --- | --- |
-| `EDGE_CONFIG_ID` | Edge Config store id (`ecfg_...`) |
-| `EC_READ_TOKEN` | Edge Config read access token |
-| `EC_API_TOKEN` | Vercel API token (for writes) |
-| `EC_TEAM_ID` | Vercel team id |
+- Five pub-slang vibe bands on a vertical slider: Lightweight, Buzzing, Pissed, Battered and Blackout.
+- Searchable built-in drinks, ten popular beer presets, and custom brand, serving-size and ABV presets.
+- Live rooms with member status, moments, reactions, synchronized cheers and a round-order rota.
+- Immutable local night history, BAC projections and shareable canvas recap images.
+- Guest-first use with optional passwordless Supabase sync.
+- Original drink pictograms plus web-fetched brand marks with text fallbacks; trademark files are not bundled.
+- A playful pub-experience persona personalises shortcuts and coach copy without changing BAC maths.
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # local dev server
-npm run build    # type-check + production build
-npm run lint     # oxlint
-npx tsx scripts/sanity-check.ts   # spot-check the BAC engine numbers
+npm run dev
+npm run check
+npm run build
+npm run preview
 ```
 
-Stack: React 19 + TypeScript + Vite. No backend, no accounts, no tracking.
+`npm run check` runs oxlint, client and API TypeScript checks, and the focused BAC/storage tests. With a preview server on port 4173, run `npm run e2e`. The deployed two-user room flow is `BASE_URL=https://your-app.example npm run e2e:rooms`.
 
-## Regenerating the app icon
+## iPhone application
 
-`public/icon.png` is generated (dependency-free) by:
+The generated Capacitor iOS project lives in `ios/App`. Run `npm run ios:sync` after web changes, then open and sign it on macOS with `npm run ios:open`. The complete TestFlight and App Store handoff is in [IOS_RELEASE.md](IOS_RELEASE.md).
+
+## Expo Go
+
+Install Expo Go, keep the phone and this PC on the same Wi-Fi, and run `npm run expo:go`. Scan Expo's QR code to open the SDK 54 shell from `expo-go/`; it loads the same Beerify app from the local Vite server, so changes stay in sync.
+
+To use a deployed build instead, start Expo from `expo-go/` with `EXPO_PUBLIC_BEERIFY_URL` set to its HTTPS URL.
+
+## Upstash Redis rooms
+
+Rooms use Upstash Redis rather than Edge Config because they are write-heavy and ephemeral. Connect an Upstash Redis database to the Vercel project and provide:
+
+During `npm run dev`, the same `/api/room` handler uses an in-memory store when Upstash variables are absent. Local rooms work across browser tabs but reset when the dev server restarts.
+
+| Variable | Purpose |
+| --- | --- |
+| `UPSTASH_REDIS_REST_URL` | Serverless Redis REST endpoint |
+| `UPSTASH_REDIS_REST_TOKEN` | Server-side Redis token |
+
+Room metadata, members and the latest 50 events expire 24 hours after the last activity. Member tokens are generated in the browser and stored hashed on the server.
+
+## Optional Supabase accounts
+
+Guests do not need an account. To enable passwordless sync, create a Supabase project, run the SQL migration in `supabase/migrations`, configure the authentication redirect URL, and add:
+
+| Variable | Visibility | Purpose |
+| --- | --- | --- |
+| `VITE_SUPABASE_URL` | Browser | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser | RLS-protected publishable key |
+| `SUPABASE_URL` | Server | Project URL used for account deletion |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Deletes an authenticated account; never expose to Vite |
+
+Without these variables the Profile screen stays in guest mode and all personal data remains in `localStorage`.
+
+## Browser checks
+
+Install Playwright's Chromium once if needed:
 
 ```bash
-node scripts/gen-icon.mjs
+npx playwright install chromium
 ```
+
+The application uses native dialogs, visible keyboard focus, reduced-motion fallbacks and 44px minimum interactive targets. Verify the final build at 320px, 375px, 430px and desktop widths before deployment.
+
+## Estimation model
+
+UK units use 10ml / 8g of ethanol. BAC is a conservative Widmark-based estimate with gradual per-drink absorption and a fixed `0.012% BAC/hour` elimination rate. It is entertainment and pacing context, not a legal measurement.

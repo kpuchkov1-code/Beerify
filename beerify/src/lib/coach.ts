@@ -1,18 +1,12 @@
-import type { CoachMessage, NightSession, Profile } from '../types'
-import { estimateBac, minutesUntilBac, projectBac } from './bac'
+import type { CoachMessage, NightSession, Profile, ZoneStatus } from '../types'
+import { bacTimeline, estimateBac, fullyAbsorbedAt, minutesUntilBac, projectBac } from './bac'
 import { TARGETS } from './drinks'
 
-/**
- * Beerify's coach: a rule-based assistant that reads your BAC curve, your
- * target zone and your pacing, then talks to you like a friend who wants you
- * to have a great night AND a great morning.
- */
+export type { ZoneStatus } from '../types'
 
-function pick<T>(arr: T[], seed: number): T {
-  return arr[Math.abs(seed) % arr.length]
+function pick<T>(values: T[], seed: number): T {
+  return values[Math.abs(seed) % values.length]
 }
-
-export type ZoneStatus = 'sober' | 'warming' | 'in-zone' | 'over' | 'way-over'
 
 export function zoneStatus(bac: number, session: NightSession): ZoneStatus {
   const target = TARGETS[session.targetId]
@@ -24,13 +18,12 @@ export function zoneStatus(bac: number, session: NightSession): ZoneStatus {
 }
 
 function minutesSinceLastDrink(session: NightSession, now: number): number | null {
-  if (session.drinks.length === 0) return null
-  const last = Math.max(...session.drinks.map((d) => d.at))
-  return (now - last) / 60_000
+  const last = session.drinks.at(-1)
+  return last ? (now - last.at) / 60_000 : null
 }
 
 function recentWater(session: NightSession, now: number): boolean {
-  return session.waters.some((w) => now - w < 45 * 60_000)
+  return session.waters.some((at) => now - at < 45 * 60_000)
 }
 
 export function coachMessage(session: NightSession, profile: Profile, now: number): CoachMessage {
@@ -42,186 +35,98 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
   const seed = session.drinks.length * 7 + session.waters.length * 3 + Math.floor(now / 600_000)
   const sinceLast = minutesSinceLastDrink(session, now)
   const hadWater = recentWater(session, now)
-  const firstName = profile.name.split(' ')[0] || 'friend'
+  const firstName = profile.name.split(' ')[0] || 'mate'
+  const credentialLine = {
+    'one-pint': `One-pint wonder status: every tap is headline news.`,
+    weekend: `Weekend athlete reporting for duty.`,
+    regular: `Pub furniture has entered the building.`,
+    'full-time': `Allegedly full-time. Still waiting for the first order.`,
+  }[profile.drinkerLevel]
+
+  if (session.drinks.length === 0) {
+    return {
+      tone: 'cheer',
+      text: pick([
+        `Night's young, ${firstName}. First order when you're ready.`,
+        `${target.label} mode selected. Let's see where the plot goes.`,
+        credentialLine,
+      ], seed),
+      tip: 'Log from the label for the best estimate.',
+    }
+  }
 
   if (status === 'sober') {
-    if (session.drinks.length === 0) {
-      return {
-        tone: 'cheer',
-        text: pick(
-          [
-            `Fresh night, ${firstName}! Tap a drink below when you start.`,
-            `All set. Your target is “${target.label}” ${target.emoji}. Tap as you sip.`,
-            `Ready when you are. First one's on you. 😉`,
-          ],
-          seed,
-        ),
-        tip: 'Eating before you drink slows absorption and smooths the ride.',
-      }
-    }
-    if (sinceLast !== null && sinceLast < 25) {
-      return {
-        tone: 'cheer',
-        text: pick(
-          [
-            `That one is on its way in. Give it a few minutes to land. 🚀`,
-            `Nice. Your body is unpacking that drink right now.`,
-            `Incoming! Watch the mug fill up as it hits.`,
-          ],
-          seed,
-        ),
-        tip: 'A drink takes 20 to 40 minutes to fully show up. No need to chase it.',
-      }
-    }
-    return {
-      tone: 'chill',
-      text: pick(
-        [`Pretty much sober again. Round two, or call it a night?`, `You've landed back at zero. Nicely done.`],
-        seed,
-      ),
-    }
+    return sinceLast !== null && sinceLast < 25
+      ? { tone: 'cheer', text: `That one's still loading. Give it a minute before reviewing the patch.` }
+      : { tone: 'chill', text: `Back near zero. A rare display of administrative competence.` }
   }
 
   if (status === 'warming') {
-    if (rising) {
-      return {
-        tone: 'cheer',
-        text: pick(
-          [
-            `Warming up nicely. You're on track for “${target.label}” ${target.emoji}.`,
-            `That last one is still kicking in. Cruise for a bit.`,
-            `On the way up. No rush, the zone will come to you.`,
-          ],
-          seed,
-        ),
-        tip: rising && sinceLast !== null && sinceLast < 10 ? 'Give each drink ~30 min to land before judging it.' : undefined,
-      }
-    }
-    return {
-      tone: 'chill',
-      text: pick(
-        [
-          `You're drifting below the zone. One more would top you back up.`,
-          `Buzz is fading. Your call: another round, or ride it out?`,
-        ],
-        seed,
-      ),
-    }
+    return rising
+      ? {
+          tone: 'cheer',
+          text: pick([
+            `Booting up nicely. ${target.label} is on the way.`,
+            `Still loading. No need to mash refresh.`,
+            `The confidence update is installing now.`,
+          ], seed),
+          tip: sinceLast !== null && sinceLast < 10 ? 'That last one has barely landed.' : undefined,
+        }
+      : { tone: 'chill', text: `The buzz is clocking off. Your move.` }
   }
 
   if (status === 'in-zone') {
-    if (rising) {
-      const overshoot = projectBac(session.drinks, profile, now, 45) > target.maxBac
-      if (overshoot) {
-        return {
-          tone: 'nudge',
-          text: pick(
-            [
-              `You're in the zone, but what's in your system will push you past it. Skip the next round.`,
-              `Perfect spot right now, and still climbing. Hold off a while to stay here.`,
-            ],
-            seed,
-          ),
-          tip: hadWater ? undefined : 'Grab a water. It buys you time in the zone.',
-        }
-      }
+    const overshoot = rising && projectBac(session.drinks, profile, now, 45) > target.maxBac
+    if (overshoot) {
       return {
-        tone: 'cheer',
-        text: pick(
-          [`You're IN the zone ${target.emoji}. This is the good stuff. Keep this pace.`, `Chef's kiss. Exactly where you wanted to be.`],
-          seed,
-        ),
-        tip: hadWater ? undefined : 'A water between rounds keeps you here longer.',
+        tone: 'nudge',
+        text: `You're ${target.label.toLowerCase()} now, with more still loading. That's tomorrow's problem forming live.`,
+        tip: hadWater ? undefined : 'Water buys the current plot a longer run.',
       }
     }
-    const minsLeft = minutesUntilBac(session.drinks, profile, now, target.minBac)
-    return {
-      tone: 'cheer',
-      text: pick(
-        [
-          `In the zone and gliding. You've got ~${Math.round(minsLeft / 10) * 10} min before it fades.`,
-          `Holding steady in “${target.label}”. You've mastered this.`,
-        ],
-        seed,
-      ),
-    }
+    const lines = session.targetId === 'merry'
+      ? [`Operating entirely on vibes.`, `Battered: achieved with suspicious efficiency.`]
+      : session.targetId === 'bignight'
+        ? [`Blackout territory. Tomorrow gets the patch notes.`, `The timeline has become unreliable.`]
+        : [`Bang on ${target.label.toLowerCase()}.`, `Exactly the chaos level requested.`]
+    return { tone: 'cheer', text: pick(lines, seed), tip: hadWater ? undefined : 'A water keeps the group chat coherent.' }
   }
 
+  const minsBack = minutesUntilBac(session.drinks, profile, now, target.maxBac)
   if (status === 'over') {
-    const minsBack = minutesUntilBac(session.drinks, profile, now, target.maxBac)
     return {
       tone: 'nudge',
-      text: pick(
-        [
-          `You've floated past your zone. No more for now. You'll drift back in about ${minsBack} min.`,
-          `A touch over target. Water, snack, dance break. Anything but another drink.`,
-          `Past the sweet spot. Pause here and let your liver catch up (~${minsBack} min).`,
-        ],
-        seed,
-      ),
-      tip: hadWater ? 'Good hydration! Keep it up.' : 'Order a big water. Future-you says thanks.',
+      text: pick([
+        `You've overshot the brief. Back in range in roughly ${minsBack} minutes.`,
+        `Past ${target.label.toLowerCase()}. The sequel did not need this much budget.`,
+        `The night has entered director's-cut territory.`,
+      ], seed),
+      tip: hadWater ? 'Water logged. Admin is happening.' : 'Water is the least boring useful button right now.',
     }
   }
 
   return {
     tone: 'warn',
-    text: pick(
-      [
-        `Well past your target, ${firstName}. Stop drinking, get water and food, and stay with friends.`,
-        `This is over the fun line. No more alcohol tonight. Water and a mate nearby, please.`,
-      ],
-      seed,
-    ),
-    tip: 'If anyone feels unwell or unresponsive, get help immediately.',
+    text: `You're cooked, ${firstName}. The app has seen enough evidence for one evening.`,
+    tip: 'Stay with the group and switch the order.',
   }
 }
 
-/** One-line verdict for the morning-after summary. */
 export function morningVerdict(session: NightSession, profile: Profile): { headline: string; body: string } {
-  const target = TARGETS[session.targetId]
-  const end = session.endedAt ?? Date.now()
-  const start = session.startedAt
-
-  let peak = 0
-  let inZoneMs = 0
-  let overMs = 0
-  const step = 5 * 60_000
-  for (let t = start; t <= end; t += step) {
-    const b = estimateBac(session.drinks, profile, t)
-    peak = Math.max(peak, b)
-    if (b >= target.minBac && b <= target.maxBac) inZoneMs += step
-    if (b > target.maxBac) overMs += step
-  }
-
-  const inZoneMin = Math.round(inZoneMs / 60_000)
-  const overMin = Math.round(overMs / 60_000)
-
   if (session.drinks.length === 0) {
-    return {
-      headline: 'A perfectly sober night 🌙',
-      body: 'Zero drinks logged. Your liver sends a thank-you card.',
-    }
+    return { headline: 'A clerical error? 🌙', body: 'Zero drinks logged. The room will need witnesses.' }
   }
-  if (overMin === 0 && inZoneMin > 0) {
-    return {
-      headline: 'Nailed it 🎯',
-      body: `You spent about ${inZoneMin} minutes in your “${target.label}” zone and never overshot. Textbook night.`,
-    }
+  const target = TARGETS[session.targetId]
+  const end = Math.max(session.endedAt ?? Date.now(), fullyAbsorbedAt(session.drinks, session.startedAt))
+  const points = bacTimeline(session.drinks, profile, session.startedAt, end, 5)
+  const peak = points.reduce((value, point) => Math.max(value, point.bac), 0)
+  const overMinutes = points.filter((point) => point.bac > target.maxBac).length * 5
+
+  if (peak <= target.maxBac && peak >= target.minBac) {
+    return { headline: 'Nailed the brief 🎯', body: `Reached ${target.label} without producing a director's cut.` }
   }
-  if (overMin > 0 && overMin <= 45) {
-    return {
-      headline: 'Pretty solid 👏',
-      body: `Mostly on target, with roughly ${overMin} minutes over the line. A water between rounds would've kept it perfect.`,
-    }
+  if (overMinutes <= 45) {
+    return { headline: 'Strong showing 👏', body: `A little beyond ${target.label}, but the timeline remains publishable.` }
   }
-  if (overMin > 45) {
-    return {
-      headline: 'A big one 😅',
-      body: `You were over your target for about ${overMin} minutes. Hydrate today, eat something real, and go easier next time.`,
-    }
-  }
-  return {
-    headline: 'Easy does it 😌',
-    body: `You kept things light and never quite reached the “${target.label}” zone. Zero regrets guaranteed.`,
-  }
+  return { headline: 'Absolute cinema 🎬', body: `Target: ${target.label}. Result: several unrequested bonus scenes.` }
 }

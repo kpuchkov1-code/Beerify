@@ -13,11 +13,11 @@ interface Props {
 const GAUGE_MAX = 0.14
 
 const STATUS_LABEL: Record<ZoneStatus, string> = {
-  sober: 'Sober',
-  warming: 'Warming up',
-  'in-zone': 'In your zone!',
-  over: 'Over your zone',
-  'way-over': 'Too far. Stop',
+  sober: 'Fresh',
+  warming: 'Loading…',
+  'in-zone': 'Brief achieved',
+  over: 'Freelancing',
+  'way-over': 'Cooked',
 }
 
 const STATUS_EMOJI: Record<ZoneStatus, string> = {
@@ -57,8 +57,10 @@ export default function BeerMeter({ bac, incoming, target, status }: Props) {
   const incomingSurface = levelY(Math.max(incoming, bac))
   const zoneTop = levelY(target.maxBac)
   const zoneBottom = levelY(target.minBac)
-  const hasBeer = bac > 0.001
-  const showIncoming = surface - incomingSurface > 2
+  const hasBeer = bac >= 0.0025
+  const showFoam = bac >= 0.025
+  const showBubbles = bac >= 0.01
+  const showIncoming = incoming >= 0.004 && surface - incomingSurface > 3
   const displayed = formatBac(bac)
 
   return (
@@ -121,7 +123,7 @@ export default function BeerMeter({ bac, incoming, target, status }: Props) {
             <g className="mug-svg__wave">
               <path d={WAVE} transform="translate(-46 -2)" fill="url(#beer-grad)" />
             </g>
-            {BUBBLES.map((b, i) => (
+            {showBubbles && BUBBLES.map((b, i) => (
               <circle
                 key={i}
                 className="mug-svg__bubble"
@@ -138,10 +140,12 @@ export default function BeerMeter({ bac, incoming, target, status }: Props) {
               />
             ))}
             {/* foam riding the surface */}
-            <g className="mug-svg__foam">
-              <path d={FOAM_BAND} transform="translate(-46 -10)" fill="#fffdf6" />
-              <path d={FOAM_BAND} transform="translate(-84 -14) scale(1 0.7)" fill="#ffffff" opacity="0.85" />
-            </g>
+            {showFoam && (
+              <g className="mug-svg__foam">
+                <path d={FOAM_BAND} transform="translate(-46 -10)" fill="#fffdf6" />
+                <path d={FOAM_BAND} transform="translate(-84 -14) scale(1 0.7)" fill="#ffffff" opacity="0.85" />
+              </g>
+            )}
           </g>
 
           {/* target zone band */}
@@ -174,11 +178,6 @@ export default function BeerMeter({ bac, incoming, target, status }: Props) {
         />
         <path className="mug-svg__base" d="M18 194 H115" />
 
-        {!hasBeer && !showIncoming && (
-          <text className="mug-svg__empty" x="66.5" y="160">
-            🌵
-          </text>
-        )}
       </svg>
 
       <div className="meter__info">

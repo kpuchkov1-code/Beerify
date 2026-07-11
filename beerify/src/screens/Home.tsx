@@ -1,117 +1,100 @@
-import { useState } from 'react'
-import type { NightSession, Profile, RoomMembership, TargetId } from '../types'
-import { TARGETS, TARGET_ORDER } from '../lib/drinks'
+import { useMemo, useState } from 'react'
+import type { NightSession, Preferences, Profile, RoomMembership, TargetId } from '../types'
+import { allPresets, TARGETS, TARGET_ORDER } from '../lib/drinks'
 import { formatNightDate, formatUnits } from '../lib/format'
-import RoomPanel from '../components/RoomPanel'
+import DrinkIcon from '../components/DrinkIcon'
 
 interface Props {
   profile: Profile
   history: NightSession[]
-  unreviewed: NightSession | null
+  preferences: Preferences
   membership: RoomMembership | null
   onStartNight: (target: TargetId) => void
   onOpenSummary: (session: NightSession) => void
-  onJoinRoom: (membership: RoomMembership) => void
-  onLeaveRoom: () => void
+  onOpenCrew: () => void
 }
 
-export default function Home({
-  profile,
-  history,
-  unreviewed,
-  membership,
-  onStartNight,
-  onOpenSummary,
-  onJoinRoom,
-  onLeaveRoom,
-}: Props) {
-  const [target, setTarget] = useState<TargetId>('tipsy')
-  const firstName = profile.name.split(' ')[0]
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening'
+export default function Home({ profile, history, preferences, membership, onStartNight, onOpenSummary, onOpenCrew }: Props) {
+  const [target, setTarget] = useState<TargetId>(preferences.lastTargetId)
+  const targetIndex = TARGET_ORDER.indexOf(target)
+  const recent = [...history].sort((a, b) => b.startedAt - a.startedAt)[0]
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60_000
+  const weeklyUnits = history
+    .filter((session) => session.startedAt >= sevenDaysAgo)
+    .flatMap((session) => session.drinks)
+    .reduce((sum, drink) => sum + drink.units, 0)
+  const favorites = useMemo(() => {
+    const presets = allPresets(preferences.customPresets)
+    return preferences.favoritePresetIds.map((id) => presets.find((preset) => preset.id === id)).filter(Boolean).slice(0, 4)
+  }, [preferences])
 
   return (
-    <div className="screen home">
+    <main className="screen home">
       <header className="home__header">
-        <h1>
-          {greeting}, {firstName} 👋
-        </h1>
-        <p className="lead">How merry are we getting tonight?</p>
+        <div className="brand-lockup brand-lockup--small"><span className="brand-lockup__mark">B</span><span>BEERIFY</span></div>
+        <p className="home__hello">Alright, {profile.name.split(' ')[0]}?</p>
+        <h1>How chaotic is tonight?</h1>
       </header>
 
-      {unreviewed && (
-        <button className="card card--highlight" onClick={() => onOpenSummary(unreviewed)}>
-          <span className="card--highlight__emoji">☀️</span>
-          <span className="card--highlight__text">
-            <strong>Your night recap is ready</strong>
-            <small>{formatNightDate(unreviewed.startedAt)} · Tap to see your units</small>
-          </span>
-          <span className="chevron">›</span>
-        </button>
-      )}
+      <section className="vibe-board" aria-labelledby="vibe-title">
+        <div className="section-heading"><h2 id="vibe-title">Tonight's setting</h2><span>{TARGETS[target].emoji}</span></div>
+        <div className="vibe-rail">
+          <input
+            className="vibe-range"
+            type="range"
+            min="0"
+            max={TARGET_ORDER.length - 1}
+            step="1"
+            value={targetIndex}
+            aria-label="Tonight's setting"
+            aria-valuetext={TARGETS[target].label}
+            onChange={(event) => setTarget(TARGET_ORDER[Number(event.target.value)])}
+          />
+          <div className="vibe-marks">
+            {TARGET_ORDER.map((id, index) => (
+              <button key={id} className={target === id ? 'vibe-mark vibe-mark--active' : 'vibe-mark'} aria-pressed={target === id} onClick={() => setTarget(id)}>
+                <span className="vibe-mark__dot" aria-hidden="true">{index + 1}</span>
+                <span><strong>{TARGETS[id].label}</strong><small>{TARGETS[id].tagline}</small></span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <button className="btn btn--primary btn--big" onClick={() => onStartNight(target)}>Start the night →</button>
+      </section>
 
-      <h2 className="section-title">Tonight's vibe</h2>
-      <div className="target-picker">
-        {TARGET_ORDER.map((id) => {
-          const t = TARGETS[id]
-          const active = target === id
-          return (
-            <button
-              key={id}
-              className={`target-card ${active ? 'target-card--active' : ''}`}
-              onClick={() => setTarget(id)}
-            >
-              <span className="target-card__emoji">{t.emoji}</span>
-              <span className="target-card__text">
-                <span className="target-card__label">{t.label}</span>
-                <span className="target-card__tagline">{t.tagline}</span>
-              </span>
-              <span className={`target-card__check ${active ? 'target-card__check--on' : ''}`}>
-                ✓
-              </span>
-            </button>
-          )
-        })}
+      <div className="home__split">
+        <section className="stat-line">
+          <span><strong>{formatUnits(weeklyUnits)}</strong> units</span>
+          <span>logged in 7 days</span>
+        </section>
+        <button className="crew-callout" onClick={onOpenCrew}>
+          <span className="crew-callout__avatars" aria-hidden="true">🦊 🐻 🐸</span>
+          <span><strong>{membership ? `Room ${membership.code}` : 'Get the crew in'}</strong><small>{membership ? 'Open the live room' : 'Create or join in one tap'}</small></span>
+          <span aria-hidden="true">→</span>
+        </button>
       </div>
 
-      {TARGETS[target].warning && <p className="target-warning">⚠️ {TARGETS[target].warning}</p>}
-
-      <button className="btn btn--primary btn--big" onClick={() => onStartNight(target)}>
-        Start night out 🌙
-      </button>
-
-      <RoomPanel
-        profile={profile}
-        membership={membership}
-        onJoin={onJoinRoom}
-        onLeave={onLeaveRoom}
-      />
-
-      {history.length > 0 && (
-        <section className="history">
-          <h2 className="section-title">Past nights</h2>
-          <div className="history__list">
-            {[...history]
-              .sort((a, b) => b.startedAt - a.startedAt)
-              .slice(0, 10)
-              .map((s) => {
-                const units = s.drinks.reduce((sum, d) => sum + d.units, 0)
-                return (
-                  <button key={s.id} className="history__row" onClick={() => onOpenSummary(s)}>
-                    <span className="history__emoji">{TARGETS[s.targetId].emoji}</span>
-                    <span className="history__date">{formatNightDate(s.startedAt)}</span>
-                    <span className="history__units">{formatUnits(units)} units</span>
-                    <span className="chevron">›</span>
-                  </button>
-                )
-              })}
+      {favorites.length > 0 && (
+        <section className="favourites-preview">
+          <div className="section-heading"><h2>Your usual suspects</h2><span>{favorites.length} saved</span></div>
+          <div className="drink-row">
+            {favorites.map((preset) => preset && (
+              <div className="drink-token" key={preset.id}>
+                <DrinkIcon icon={preset.icon} size={40} logoUrl={preset.logoUrl} brand={preset.brand} />
+                <span className="drink-token__copy"><strong>{preset.brand || preset.name}</strong><small>{preset.detail}</small></span>
+              </div>
+            ))}
           </div>
         </section>
       )}
 
-      <p className="fine-print">
-        Beerify estimates are a friendly guide, not a breathalyser. Never drink and drive.
-      </p>
-    </div>
+      {recent && (
+        <button className="night-receipt-preview" onClick={() => onOpenSummary(recent)}>
+          <span><small>LAST NIGHT</small><strong>{formatNightDate(recent.startedAt)}</strong></span>
+          <span>{TARGETS[recent.targetId].label} · {recent.drinks.length} drinks</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      )}
+    </main>
   )
 }

@@ -1,15 +1,15 @@
 {
   "name": "Beerify",
   "short_name": "Beerify",
-  "description": "Your friendly AI drinking buddy — pick your vibe, tap your drinks, stay in the zone.",
+  "description": "Private live rooms, rounds and recaps for nights out.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f2f2f7",
-  "theme_color": "#f2f2f7",
+  "background_color": "#10241c",
+  "theme_color": "#10241c",
   "icons": [
     {
       "src": "/icon.png",
-      "sizes": "512x512",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
     }

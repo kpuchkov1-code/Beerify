@@ -1,210 +1,187 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { DrinkTypeId, NightSession, Profile, RoomMembership } from '../types'
-import { DRINK_TYPES, TARGETS } from '../lib/drinks'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { DrinkPreset, LoggedDrink, NightSession, Preferences, Profile, RoomMembership, RoomState } from '../types'
+import { allPresets, TARGETS, targetLabel } from '../lib/drinks'
 import { estimateBac, peakBacAhead } from '../lib/bac'
 import { coachMessage, zoneStatus } from '../lib/coach'
 import { formatTime, formatUnits } from '../lib/format'
 import BeerMeter from '../components/BeerMeter'
-import { useRoom } from '../lib/room'
+import DrinkIcon from '../components/DrinkIcon'
+import { sendRoomEvent, useRoom } from '../lib/room'
 import { MemberRow } from '../components/Squad'
+import { nativeTap } from '../lib/native'
 
 interface Props {
   session: NightSession
   profile: Profile
+  preferences: Preferences
   membership: RoomMembership | null
-  onLogDrink: (type: DrinkTypeId) => void
+  onLogDrink: (presetId: string) => LoggedDrink | null
   onLogWater: () => void
   onUndo: () => void
-  onEndNight: () => void
+  onEndNight: (room?: RoomState | null) => void
+  onToggleFavorite: (presetId: string) => void
+  onSavePreset: (preset: DrinkPreset) => void
 }
 
-const TAP_ORDER: DrinkTypeId[] = ['beer', 'shot', 'wine', 'cocktail']
-
-export default function NightOut({
-  session,
-  profile,
-  membership,
-  onLogDrink,
-  onLogWater,
-  onUndo,
-  onEndNight,
-}: Props) {
+export default function NightOut({ session, profile, preferences, membership, onLogDrink, onLogWater, onUndo, onEndNight, onToggleFavorite }: Props) {
   const [now, setNow] = useState(() => Date.now())
-  const [confirmEnd, setConfirmEnd] = useState(false)
-  const [burst, setBurst] = useState<{ key: number; emoji: string; source: string } | null>(null)
+  const [drinkType, setDrinkType] = useState<DrinkPreset | null>(null)
+  const [burst, setBurst] = useState<string | null>(null)
+  const endDialog = useRef<HTMLDialogElement>(null)
+  const drinksDialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000)
+    const id = setInterval(() => setNow(Date.now()), 1_000)
     return () => clearInterval(id)
   }, [])
 
   const bac = useMemo(() => estimateBac(session.drinks, profile, now), [session.drinks, profile, now])
-  const incoming = useMemo(
-    () => peakBacAhead(session.drinks, profile, now, 60),
-    [session.drinks, profile, now],
-  )
+  const incoming = useMemo(() => peakBacAhead(session.drinks, profile, now, 60), [session.drinks, profile, now])
   const status = zoneStatus(bac, session)
   const coach = useMemo(() => coachMessage(session, profile, now), [session, profile, now])
   const target = TARGETS[session.targetId]
-  const totalUnits = session.drinks.reduce((sum, d) => sum + d.units, 0)
-  const blocked = status === 'way-over'
+  const totalUnits = session.drinks.reduce((sum, drink) => sum + drink.units, 0)
+  const presets = useMemo(() => allPresets(preferences.customPresets), [preferences.customPresets])
+  const quickIds = [...preferences.favoritePresetIds, ...preferences.recentPresetIds]
+  const quick = [...new Set(quickIds)].map((id) => presets.find((preset) => preset.id === id)).filter((preset): preset is DrinkPreset => Boolean(preset)).slice(0, 4)
+  const drinkTypes = presets.filter((preset) => !preset.brand && preset.source === 'built-in')
+  const brands = drinkType ? presets.filter((preset) => preset.brand && preset.icon === drinkType.icon) : []
 
-  const selfSnapshot = membership
-    ? {
-        id: membership.memberId,
-        name: profile.name,
-        bac,
-        units: totalUnits,
-        drinks: session.drinks.length,
-        targetId: session.targetId,
-        status,
-        inSession: true,
-      }
-    : null
-  const { room, refresh: syncRoom } = useRoom(membership, selfSnapshot, 20_000)
+  const self = membership ? {
+    id: membership.memberId,
+    name: profile.name,
+    bac,
+    units: totalUnits,
+    drinks: session.drinks.length,
+    targetId: session.targetId,
+    status,
+    inSession: true,
+  } : null
+  const { room, refresh } = useRoom(membership, self, 5_000)
+  const countdown = room?.events.filter((event) => event.type === 'cheers-countdown' && event.startsAt && event.startsAt > now - 2_000).at(-1)
+  const countdownNumber = countdown?.startsAt ? Math.max(0, Math.ceil((countdown.startsAt - now) / 1_000)) : null
 
-  function tap(id: DrinkTypeId) {
-    onLogDrink(id)
+  async function log(presetId: string) {
+    const logged = onLogDrink(presetId)
+    if (!logged) return
     setNow(Date.now())
-    setBurst({ key: Date.now(), emoji: DRINK_TYPES[id].emoji, source: id })
-    if (navigator.vibrate) navigator.vibrate(30)
-    setTimeout(syncRoom, 400)
+    setBurst(logged.id)
+    setTimeout(() => setBurst(null), 900)
+    if (preferences.haptics) {
+      nativeTap('medium')
+      if (navigator.vibrate) navigator.vibrate(30)
+    }
+    if (membership) {
+      sendRoomEvent(membership, 'drink', { drink: { name: logged.name, brand: logged.brand, icon: logged.icon, units: logged.units } })
+        .then(() => refresh()).catch(() => {})
+    }
   }
 
-  function tapWater() {
+  function water() {
     onLogWater()
-    setNow(Date.now())
-    setBurst({ key: Date.now(), emoji: '💧', source: 'water' })
-    if (navigator.vibrate) navigator.vibrate(15)
+    if (preferences.haptics) {
+      nativeTap()
+      if (navigator.vibrate) navigator.vibrate(15)
+    }
   }
+
+  const displayTarget = targetLabel(session.targetId, room?.labels)
 
   return (
-    <div className={`screen night night--${status}`}>
-      <header className="night__header">
-        <div>
-          <h1>Night out</h1>
-          <span className="night__target">
-            {target.emoji} {target.label}
-          </span>
-        </div>
-        <button className="btn btn--quiet" onClick={() => setConfirmEnd(true)}>
-          End night
-        </button>
+    <main className={`screen night night--${status} ${preferences.reducedMotion ? 'reduce-motion' : ''}`}>
+      <header className="night-bar">
+        <div><span>{displayTarget}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
+        <div className="night-bar__bac"><span>EST.</span><strong>{bac.toFixed(3).replace(/^0/, '')}</strong></div>
+        <button className="icon-btn icon-btn--light" aria-label="End the night" onClick={() => endDialog.current?.showModal()}>×</button>
       </header>
 
-      <BeerMeter bac={bac} incoming={incoming} target={target} status={status} />
-
-      <div className={`coach coach--${coach.tone}`} role="status" aria-live="polite">
-        <span className="coach__avatar">🤖</span>
-        <div>
-          <p className="coach__text">{coach.text}</p>
-          {coach.tip && <p className="coach__tip">{coach.tip}</p>}
+      <section className="night-stage">
+        <BeerMeter bac={bac} incoming={incoming} target={{ ...target, label: displayTarget }} status={status} />
+        <div className={`hype-mate hype-mate--${coach.tone}`} role="status" aria-live="polite">
+          <span className="hype-mate__badge">HYPE<br />MATE</span>
+          <div><p>{coach.text}</p>{coach.tip && <small>{coach.tip}</small>}</div>
         </div>
-      </div>
-
-      {blocked && (
-        <div className="night__blocked">
-          Drink logging is paused. You are well past your zone, so it is water only for now. 💧
-        </div>
-      )}
-
-      <h2 className="section-title">Tap what you're having</h2>
-      <div className="tap-grid">
-        {TAP_ORDER.map((id) => {
-          const d = DRINK_TYPES[id]
-          return (
-            <button
-              key={id}
-              className="tap-btn"
-              disabled={blocked}
-              onClick={() => tap(id)}
-              aria-label={`Log one ${d.label}`}
-            >
-              <span className="tap-btn__emoji">{d.emoji}</span>
-              <span className="tap-btn__label">{d.label}</span>
-              <span className="tap-btn__detail">{d.detail}</span>
-              {burst?.source === id && (
-                <span className="tap-btn__burst" key={burst.key} aria-hidden="true">
-                  {burst.emoji}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      <button className="tap-btn tap-btn--water" onClick={tapWater} aria-label="Log a water">
-        <span className="tap-btn__emoji">💧</span>
-        <span className="tap-btn__water-text">
-          <span className="tap-btn__label">Water break</span>
-          <span className="tap-btn__detail">Your liver's best friend</span>
-        </span>
-        {burst?.source === 'water' && (
-          <span className="tap-btn__burst" key={burst.key} aria-hidden="true">
-            {burst.emoji}
-          </span>
-        )}
-      </button>
-
-      <div className="night__meta">
-        <span>
-          {session.drinks.length} drink{session.drinks.length === 1 ? '' : 's'} · {formatUnits(totalUnits)} units
-          {session.waters.length > 0 && ` · ${session.waters.length} 💧`}
-        </span>
-        {session.drinks.length > 0 && (
-          <button className="btn btn--quiet btn--small" onClick={onUndo}>
-            Undo last
-          </button>
-        )}
-      </div>
+      </section>
 
       {membership && room && (
-        <section className="night__squad">
-          <h2 className="section-title">Your room · {membership.code}</h2>
-          {room.members.length > 1 ? (
-            <ul className="squad card">
-              {room.members.map((m) => (
-                <MemberRow key={m.id} member={m} isSelf={m.id === membership.memberId} />
-              ))}
-            </ul>
-          ) : (
-            <p className="night__squad-empty">No friends in the room yet. They'll pop up here.</p>
-          )}
+        <section className="night-crew-strip">
+          <div className="section-heading"><h2>{room.name}</h2><span>{room.members.length} in</span></div>
+          <ul className="squad squad--compact">{room.members.map((member) => <MemberRow key={member.id} member={member} isSelf={member.id === membership.memberId} />)}</ul>
+          <div className="night-crew-actions">
+            <button onClick={() => sendRoomEvent(membership, 'reaction', { reaction: 'cheers' }).then(() => refresh()).catch(() => {})}>🍻 Cheers</button>
+            <button onClick={() => sendRoomEvent(membership, 'cheers-countdown').then(() => refresh()).catch(() => {})}>⏱ Drink up</button>
+            <button onClick={() => sendRoomEvent(membership, 'round-invite').then(() => refresh()).catch(() => {})}>＋ Next round</button>
+          </div>
         </section>
       )}
 
+      <section className="quick-log" aria-labelledby="quick-log-title">
+        <div className="section-heading"><h2 id="quick-log-title">Tap the order</h2><button className="text-action" onClick={() => { setDrinkType(null); drinksDialog.current?.showModal() }}>Choose drink</button></div>
+        <div className="quick-log__grid">
+          {quick.map((preset) => (
+            <button key={preset.id} className="quick-drink" onClick={() => log(preset.id)} aria-label={`Log ${preset.brand || preset.name}`}>
+              <DrinkIcon icon={preset.icon} size={48} logoUrl={preset.logoUrl} brand={preset.brand} />
+              <span><strong>{preset.brand || preset.name}</strong><small>{preset.detail}</small></span>
+              {burst && session.drinks.at(-1)?.presetId === preset.id && <span className="quick-drink__burst" aria-hidden="true">+1</span>}
+            </button>
+          ))}
+        </div>
+        <div className="quick-log__utility">
+          <button onClick={water}>💧 <span>Water</span></button>
+          <button disabled={!session.drinks.length} onClick={() => session.drinks.at(-1) && log(session.drinks.at(-1)!.presetId)}>↻ <span>Repeat last</span></button>
+          <button disabled={!session.drinks.length} onClick={onUndo}>↶ <span>Undo</span></button>
+        </div>
+      </section>
+
       {session.drinks.length > 0 && (
-        <ul className="night__log">
-          {[...session.drinks]
-            .sort((a, b) => b.at - a.at)
-            .slice(0, 6)
-            .map((d) => (
-              <li key={d.id}>
-                <span>{DRINK_TYPES[d.type].emoji}</span>
-                <span>{DRINK_TYPES[d.type].label}</span>
-                <span className="night__log-time">{formatTime(d.at)}</span>
-              </li>
-            ))}
-        </ul>
+        <section className="live-tab">
+          <div className="section-heading"><h2>Tonight's tab</h2><span>{formatUnits(totalUnits)} units</span></div>
+          <ol>{[...session.drinks].reverse().slice(0, 8).map((drink) => <li key={drink.id}><DrinkIcon icon={drink.icon} size={30} logoUrl={drink.logoUrl} brand={drink.brand} /><span><strong>{drink.brand || drink.name}</strong><small>{formatTime(drink.at)}</small></span><span>{formatUnits(drink.units)}u</span></li>)}</ol>
+        </section>
       )}
 
-      {confirmEnd && (
-        <div className="sheet-backdrop" onClick={() => setConfirmEnd(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h2>Calling it a night?</h2>
-            <p>
-              We'll save tonight and have your summary of units, peak and all, waiting for you in
-              the morning. ☀️
-            </p>
-            <button className="btn btn--primary" onClick={onEndNight}>
-              End night, sleep tight 😴
-            </button>
-            <button className="btn btn--quiet" onClick={() => setConfirmEnd(false)}>
-              Keep going
-            </button>
-          </div>
+      {countdownNumber !== null && (
+        <div className="cheers-overlay" role="status" aria-live="assertive">
+          <span>{countdownNumber > 0 ? countdownNumber : '🍻'}</span>
+          <strong>{countdownNumber > 0 ? `${countdown?.actorName ?? 'The room'} called drink up` : 'CHEERS'}</strong>
         </div>
       )}
-    </div>
+
+      <dialog ref={drinksDialog} className="native-dialog drink-dialog" aria-labelledby="all-drinks-title">
+        <div className="dialog-sheet dialog-sheet--tall">
+          <div className="dialog-heading"><div><h2 id="all-drinks-title">{drinkType ? 'Which brand?' : 'What did you drink?'}</h2><p>{drinkType ? drinkType.name : 'Pick the drink first. Brand comes next.'}</p></div><button className="icon-btn" aria-label="Close drinks" onClick={() => drinksDialog.current?.close()}>×</button></div>
+          {drinkType ? (
+            <div className="brand-step">
+              <button className="brand-step__back" onClick={() => setDrinkType(null)}>← Change drink</button>
+              <div className="drink-catalogue">
+                {brands.map((preset) => {
+                  const favorite = preferences.favoritePresetIds.includes(preset.id)
+                  return <div className="catalogue-row" key={preset.id}><button className="catalogue-row__main" onClick={() => { log(preset.id); drinksDialog.current?.close() }}><DrinkIcon icon={preset.icon} size={38} logoUrl={preset.logoUrl} brand={preset.brand} /><span><strong>{preset.brand}</strong><small>{preset.name} · {preset.detail}</small></span><span>{formatUnits(preset.volumeMl * preset.abv * 0.789 / 8)}u</span></button><button className="catalogue-row__star" aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.brand} ${favorite ? 'from' : 'to'} favourites`} aria-pressed={favorite} onClick={() => onToggleFavorite(preset.id)}>{favorite ? '★' : '☆'}</button></div>
+                })}
+                <button className="other-brand" onClick={() => { log(drinkType.id); drinksDialog.current?.close() }}>
+                  <DrinkIcon icon={drinkType.icon} size={38} />
+                  <span><strong>Other brand</strong><small>Use the standard {drinkType.detail.toLowerCase()} pour</small></span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="drink-type-grid">
+              {drinkTypes.map((preset) => <button key={preset.id} onClick={() => setDrinkType(preset)}><DrinkIcon icon={preset.icon} size={42} /><span><strong>{preset.name}</strong><small>{preset.detail}</small></span><span aria-hidden="true">›</span></button>)}
+            </div>
+          )}
+        </div>
+      </dialog>
+
+      <dialog ref={endDialog} className="native-dialog" aria-labelledby="end-night-title">
+        <div className="dialog-sheet">
+          <span className="dialog-mark" aria-hidden="true">▤</span>
+          <h2 id="end-night-title">Close tonight's tab?</h2>
+          <p>The full receipt, peak and group evidence will move into History.</p>
+          <button className="btn btn--primary" onClick={() => onEndNight(room)}>End night and make recap</button>
+          <button className="btn btn--quiet" autoFocus onClick={() => endDialog.current?.close()}>Keep the tab open</button>
+        </div>
+      </dialog>
+    </main>
   )
 }

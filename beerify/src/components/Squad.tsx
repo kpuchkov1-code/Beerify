@@ -5,11 +5,11 @@ import { formatBac } from '../lib/bac'
 import { formatUnits } from '../lib/format'
 
 const STATUS_LABEL: Record<string, string> = {
-  sober: 'Sober',
-  warming: 'Warming up',
-  'in-zone': 'In the zone',
-  over: 'Over the zone',
-  'way-over': 'Needs water!',
+  sober: 'Off duty',
+  warming: 'Loading',
+  'in-zone': 'Brief achieved',
+  over: 'Freelancing',
+  'way-over': 'Cooked',
 }
 
 function timeAgo(epoch: number): string {
