@@ -280,13 +280,18 @@ async function buildRoom(code: string): Promise<unknown | null> {
     .filter((entry) => entry.value > 0)
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name)).slice(0, 3)
   const mode = meta.leaderboardMode ?? 'balanced'
+  const drinks = {
+    drinks: rank((member) => member.drinks),
+    units: rank((member) => member.units),
+  }
   const social = {
+    ...drinks,
     rounds: rank((member) => Number(stats?.[`${member.id}:rounds`] ?? 0)),
     reactions: rank((member) => Number(stats?.[`${member.id}:reactions`] ?? 0)),
     activity: rank((member) => Number(stats?.[`${member.id}:activity`] ?? 0)),
     variety: rank((member) => member.distinctDrinks),
   }
-  const categories = mode === 'social' ? social : { ...social, drinks: rank((member) => member.drinks), units: rank((member) => member.units), ...(mode === 'chaos' ? { bac: rank((member) => member.bac) } : {}) }
+  const categories = mode === 'social' ? drinks : { ...social, ...(mode === 'chaos' ? { bac: rank((member) => member.bac) } : {}) }
   return {
     ...meta,
     leaderboardMode: mode,

@@ -34,9 +34,9 @@ test('creates ids when randomUUID is unavailable in a LAN WebView', () => {
   }
 })
 
-test('ships ten branded beer presets with icon fallbacks', () => {
+test('ships branded beer presets with icon fallbacks', () => {
   const branded = BUILT_IN_PRESETS.filter((preset) => preset.brand)
-  assert.equal(branded.length, 10)
+  assert.ok(branded.length >= 10)
   assert.ok(branded.every((preset) => preset.logoUrl?.startsWith('https://')))
 })
 

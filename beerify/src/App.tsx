@@ -140,6 +140,7 @@ export default function App() {
 
   function joinRoom(room: RoomMembership) {
     setData((current) => ({ ...current, room }))
+    setTab('tonight')
   }
 
   function leaveRoom() {
@@ -208,7 +209,7 @@ export default function App() {
   const content = tab === 'tonight'
     ? <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
     : tab === 'crew'
-      ? <Crew profile={data.profile} membership={data.room} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} />
+      ? <Crew profile={data.profile} membership={data.room} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} onOpenTonight={() => setTab('tonight')} />
       : tab === 'history'
         ? <History history={data.history} onOpenSummary={openSummary} />
         : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />

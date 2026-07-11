@@ -7,13 +7,14 @@ interface Props {
   initialCode: string
   onJoin: (membership: RoomMembership) => void
   onLeave: () => void
+  onOpenTonight: () => void
 }
 
-export default function Crew({ profile, membership, initialCode, onJoin, onLeave }: Props) {
+export default function Crew({ profile, membership, initialCode, onJoin, onLeave, onOpenTonight }: Props) {
   return (
     <main className="screen crew-screen">
       <header className="page-header page-header--stacked"><span className="page-kicker">THE GROUP CHAT, LIVE</span><h1>Crew</h1><p>Sort the round. React to the evidence. Keep the night moving.</p></header>
-      <RoomPanel profile={profile} membership={membership} initialCode={initialCode} onJoin={onJoin} onLeave={onLeave} />
+      <RoomPanel profile={profile} membership={membership} initialCode={initialCode} onJoin={onJoin} onLeave={onLeave} onOpenTonight={onOpenTonight} />
     </main>
   )
 }

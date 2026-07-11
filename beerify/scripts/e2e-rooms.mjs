@@ -32,7 +32,7 @@ async function onboard(page, name) {
   await page.getByRole('button', { name: 'Next: pub credentials' }).click()
   await page.getByRole('button', { name: /Weekend athlete/ }).click()
   await page.getByRole('button', { name: 'Enter Beerify' }).click()
-  await page.getByRole('button', { name: 'Crew' }).click()
+  await page.getByRole('button', { name: 'Crew', exact: true }).click()
 }
 
 const browser = await chromium.launch()
@@ -46,14 +46,19 @@ await onboard(ana, 'Ana')
 await onboard(ben, 'Ben')
 
 // Ana creates a room.
+await ana.getByRole('button', { name: 'Drinks', exact: true }).click()
 await ana.getByRole('button', { name: 'Create room' }).click()
-await ana.locator('.room-ticket').waitFor({ timeout: 15000 })
-const code = (await ana.locator('.room-ticket strong').textContent())?.trim()
+await ana.getByRole('heading', { name: 'How chaotic is tonight?' }).waitFor({ timeout: 15000 })
+const roomCallout = (await ana.locator('.crew-callout strong').textContent())?.trim() ?? ''
+const code = roomCallout.match(/[A-Z2-9]{6}/)?.[0]
 await expect(`Ana got a room code (${code})`, /^[A-Z2-9]{6}$/.test(code ?? ''))
 
 // Ben joins with the code.
 await ben.getByLabel('Room code').fill(code)
 await ben.getByRole('button', { name: 'Join', exact: true }).click()
+await ben.getByRole('heading', { name: 'How chaotic is tonight?' }).waitFor({ timeout: 15000 })
+await expect('Ben lands in Tonight setup after joining', await ben.getByText(`Room ${code}`).isVisible())
+await ben.locator('.app-nav__item', { hasText: 'Crew' }).click()
 await ben.locator('.room-ticket').waitFor({ timeout: 15000 })
 
 // Ben should soon see both members (poll runs every 30s on his mocked clock).
@@ -67,7 +72,6 @@ await expect(`Ben sees both members (got ${rows})`, rows === 2)
 await expect('Ben sees Ana resting', await ben.locator('.squad__row', { hasText: 'Ana' }).getByText(/Resting/).isVisible())
 
 // Ana heads out and logs a beer.
-await ana.getByRole('button', { name: 'Tonight' }).click()
 await ana.getByRole('button', { name: 'Start the night →' }).click()
 await ana.getByRole('button', { name: 'Log Guinness' }).click()
 await ana.waitForTimeout(2500) // real clock: push fires 400ms after the tap
@@ -81,13 +85,13 @@ for (let i = 0; i < 8 && !seen; i++) {
   seen = await anaRow.getByText(/1 drink/).isVisible().catch(() => false)
 }
 await expect('Ben sees Ana out with 1 drink', seen)
-await ben.screenshot({ path: SHOTS + '07-room-ben.png' })
+await expect('Ben sees the drinks leaderboard', await ben.locator('.leaderboard-categories article', { hasText: 'Drinks' }).getByText('Ana').isVisible())
+await ben.screenshot({ path: SHOTS + '07-room-ben.png', fullPage: true })
 
 // Cleanup: both leave the room.
 await ana.getByRole('button', { name: 'End the night' }).click()
 await ana.getByRole('button', { name: /End night and make recap/ }).click()
-await ana.getByRole('button', { name: 'Back to Beerify' }).click()
-await ana.getByRole('button', { name: 'Crew' }).click()
+await ana.locator('.app-nav__item', { hasText: 'Crew' }).click()
 await ana.getByRole('button', { name: 'Leave room' }).click()
 await ben.getByRole('button', { name: 'Leave room' }).click()
 await expect('Ana back to create-room state', await ana.getByRole('button', { name: 'Create room' }).isVisible())

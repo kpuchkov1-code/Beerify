@@ -13,6 +13,7 @@ interface Props {
   initialCode?: string
   onJoin: (membership: RoomMembership) => void
   onLeave: () => void
+  onOpenTonight: () => void
 }
 
 const REACTIONS: { id: RoomReaction; label: string; icon: string }[] = [
@@ -29,6 +30,11 @@ function restingMember(profile: Profile): Omit<SquadMember, 'id' | 'updatedAt'> 
 }
 
 const LEADERBOARD_LABELS: Record<LeaderboardMetric, string> = { rounds: 'Round Boss', reactions: 'Hype Merchant', activity: 'Most Active', variety: 'Menu Explorer', drinks: 'Drinks', units: 'Units', bac: 'Current BAC' }
+const LEADERBOARD_OPTIONS: { id: LeaderboardMode; label: string; detail: string }[] = [
+  { id: 'social', label: 'Drinks', detail: 'Drink count and units' },
+  { id: 'balanced', label: 'Social', detail: 'Drinks, reactions, rounds and variety' },
+  { id: 'chaos', label: 'Chaos', detail: 'Everything, including current BAC' },
+]
 
 function eventCopy(event: RoomEvent): string {
   if (event.type === 'drink' && event.drink) return `logged ${event.drink.brand || event.drink.name}`
@@ -45,7 +51,7 @@ function timeAgo(at: number): string {
   return minutes < 1 ? 'now' : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
 }
 
-export default function RoomPanel({ profile, membership, initialCode = '', onJoin, onLeave }: Props) {
+export default function RoomPanel({ profile, membership, initialCode = '', onJoin, onLeave, onOpenTonight }: Props) {
   const [joinCode, setJoinCode] = useState(initialCode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +65,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
   const suggestedBuyer = room?.members.length
     ? room.members[(lastBuyerIndex + 1) % room.members.length]
     : null
+  const hasLeaderboardEntries = Boolean(room && Object.values(room.leaderboard.categories).some((entries) => entries?.length))
 
   useEffect(() => {
     if (!membership) return
@@ -135,7 +142,15 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
           <span className="room-entry__mark" aria-hidden="true">♟</span>
           <h2>Open tonight's room</h2>
           <p>One link for the order, the reactions and the evidence.</p>
-          <fieldset className="leaderboard-choice fieldset-reset"><legend>Choose the leaderboard</legend>{(['social', 'balanced', 'chaos'] as const).map((mode) => <button key={mode} aria-pressed={leaderboardMode === mode} className={leaderboardMode === mode ? 'chip chip--active' : 'chip'} onClick={() => setLeaderboardMode(mode)}>{mode === 'social' ? 'Social' : mode === 'balanced' ? 'Social + drinks' : 'Maximum chaos'}</button>)}</fieldset>
+          <fieldset className="leaderboard-choice fieldset-reset">
+            <legend>Choose the leaderboard</legend>
+            <div className="leaderboard-choice__options">
+              {LEADERBOARD_OPTIONS.map((option) => (
+                <button key={option.id} type="button" aria-pressed={leaderboardMode === option.id} aria-describedby="leaderboard-choice-detail" className="leaderboard-option" onClick={() => setLeaderboardMode(option.id)}>{option.label}</button>
+              ))}
+            </div>
+            <p id="leaderboard-choice-detail" className="leaderboard-choice__detail">{LEADERBOARD_OPTIONS.find((option) => option.id === leaderboardMode)?.detail ?? 'Pick what the room should rank.'}</p>
+          </fieldset>
           <button className="btn btn--primary btn--big" disabled={busy || !leaderboardMode} onClick={handleCreate}>{busy ? 'Opening room…' : 'Create room'}</button>
         </section>
         <div className="room-entry__or"><span>or join the others</span></div>
@@ -155,6 +170,11 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
         <button className="btn btn--primary" onClick={handleShare}>Invite crew</button>
       </section>
 
+      <section className="room-start-callout">
+        <div><h2>Ready to start?</h2><p>Set your vibe, then every drink will count towards this room.</p></div>
+        <button className="btn btn--primary" onClick={onOpenTonight}>Start logging drinks</button>
+      </section>
+
       {(error || roomError) && <p className="inline-error" role="alert">{error || roomError}</p>}
 
       <section className="crew-section">
@@ -164,7 +184,11 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
         </ul>
       </section>
 
-      {room && <section className="leaderboard-panel"><div className="section-heading"><h2>Leaderboard</h2><button className="text-action" onClick={shareLeaderboard}>Share card</button></div><p className="leaderboard-panel__mode">{room.leaderboardMode === 'social' ? 'Social' : room.leaderboardMode === 'balanced' ? 'Social + drinks' : 'Maximum chaos'} mode</p><div className="leaderboard-categories">{Object.entries(room.leaderboard.categories).map(([metric, entries]) => entries?.length ? <article key={metric}><h3>{LEADERBOARD_LABELS[metric as LeaderboardMetric]}</h3><ol>{entries.map((entry, index) => <li key={entry.memberId}><span><b>{index + 1}</b>{entry.name}</span><strong>{metric === 'bac' ? entry.value.toFixed(3).replace(/^0/, '') : metric === 'units' ? entry.value.toFixed(1) : entry.value}</strong></li>)}</ol></article> : null)}</div></section>}
+      {room && <section className="leaderboard-panel">
+        <div className="section-heading"><h2>Leaderboard</h2><button className="text-action" onClick={shareLeaderboard}>Share card</button></div>
+        <p className="leaderboard-panel__mode">{LEADERBOARD_OPTIONS.find((option) => option.id === room.leaderboardMode)?.label} mode</p>
+        {hasLeaderboardEntries ? <div className="leaderboard-categories">{Object.entries(room.leaderboard.categories).map(([metric, entries]) => entries?.length ? <article key={metric}><h3>{LEADERBOARD_LABELS[metric as LeaderboardMetric]}</h3><ol>{entries.map((entry, index) => <li key={entry.memberId}><span><b>{index + 1}</b>{entry.name}</span><strong>{metric === 'bac' ? entry.value.toFixed(3).replace(/^0/, '') : metric === 'units' ? `${entry.value.toFixed(1)}u` : entry.value}</strong></li>)}</ol></article> : null)}</div> : <p className="leaderboard-empty">No scores yet. Start logging drinks and the first rankings will appear here.</p>}
+      </section>}
 
       <section className="ritual-panel">
         <div className="section-heading"><h2>Make some noise</h2></div>
@@ -215,7 +239,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
           }}>
             <label className="field"><span className="field__label">Room name</span><input name="name" defaultValue={room.name} maxLength={36} /></label>
             <label className="field"><span className="field__label">Room colour</span><select name="theme" defaultValue={room.theme}><option value="green">Bottle green</option><option value="red">Pub red</option><option value="blue">Electric blue</option></select></label>
-            <label className="field"><span className="field__label">Leaderboard</span><select name="leaderboardMode" defaultValue={room.leaderboardMode}><option value="social">Social</option><option value="balanced">Social + drinks</option><option value="chaos">Maximum chaos</option></select></label>
+            <label className="field"><span className="field__label">Leaderboard</span><select name="leaderboardMode" defaultValue={room.leaderboardMode}>{LEADERBOARD_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
             <div className="slang-grid">{TARGET_ORDER.map((id) => <label key={id}><span>{TARGETS[id].label}</span><input name={id} defaultValue={room.labels[id] ?? ''} placeholder="Keep default" maxLength={24} /></label>)}</div>
             <button className="btn btn--secondary" type="submit">Save room style</button>
           </form>

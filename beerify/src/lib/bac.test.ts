@@ -5,7 +5,7 @@ import { estimateBac, minutesUntilBac, peakBacAhead } from './bac'
 import { BUILT_IN_PRESETS, logFromPreset } from './drinks'
 
 const profile: Profile = {
-  name: 'Test', weightKg: 80, sex: 'male', drinkerLevel: 'weekend', createdAt: 0, updatedAt: 0,
+  id: 'test-profile', name: 'Test', weightKg: 80, sex: 'male', drinkerLevel: 'weekend', createdAt: 0, updatedAt: 0,
 }
 const lager = BUILT_IN_PRESETS.find((preset) => preset.id === 'lager-pint')!
 

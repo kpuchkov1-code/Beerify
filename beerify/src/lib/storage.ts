@@ -15,7 +15,6 @@ import type {
   Sex,
   MealState,
   RoomLeaderboard,
-  RoomState,
   TargetSnapshot,
   TargetId,
 } from '../types'
@@ -218,7 +217,7 @@ function normalizeSession(value: unknown, custom: DrinkPreset[], now: number): N
       ? s.roomEvents.map(normalizeRoomEvent).filter((event): event is RoomEvent => event !== null)
       : undefined,
     roomMembers: Array.isArray(s.roomMembers) ? s.roomMembers.map(record).filter((member): member is Record<string, unknown> => Boolean(member && text(member.id, 100) && text(member.name, 30))).map((member) => ({ id: text(member.id, 100)!, name: text(member.name, 30)! })) : undefined,
-    roomLeaderboard: record(s.roomLeaderboard) as RoomLeaderboard | undefined,
+    roomLeaderboard: record(s.roomLeaderboard) as unknown as RoomLeaderboard | undefined,
     roomConfig: record(s.roomConfig) as NightSession['roomConfig'],
     endedAt: finite(s.endedAt) ? s.endedAt : undefined,
     reviewedAt: finite(s.reviewedAt) ? s.reviewedAt : undefined,
