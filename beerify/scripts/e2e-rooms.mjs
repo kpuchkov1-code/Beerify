@@ -75,6 +75,11 @@ await expect('Ben sees Ana resting', await ben.locator('.squad__row', { hasText:
 await ana.getByRole('button', { name: 'Start the night →' }).click()
 await ana.getByRole('button', { name: 'Log Guinness' }).click()
 await ana.waitForTimeout(2500) // real clock: push fires 400ms after the tap
+await ana.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
+await ana.locator('.room-ticket').waitFor({ timeout: 15000 })
+await expect('Ana can open the full room without ending her night', !(await ana.getByRole('heading', { name: 'Ready to start?' }).isVisible().catch(() => false)))
+await expect('Ana stays active after switching to Crew', await ana.locator('.squad__row', { hasText: 'Ana' }).getByText(/1 drink/).isVisible())
+await ana.screenshot({ path: SHOTS + '08-active-night-crew.png', fullPage: true })
 
 // Ben's next polls should show Ana in session with 1 drink.
 let anaRow = ben.locator('.squad__row', { hasText: 'Ana' })
@@ -86,9 +91,13 @@ for (let i = 0; i < 8 && !seen; i++) {
 }
 await expect('Ben sees Ana out with 1 drink', seen)
 await expect('Ben sees the drinks leaderboard', await ben.locator('.leaderboard-categories article', { hasText: 'Drinks' }).getByText('Ana').isVisible())
+await ben.getByRole('button', { name: /Drink up in 8/ }).click()
+await ana.getByText(/called drink up/).waitFor({ timeout: 8000 })
+await expect('Countdown remains visible in active Crew', await ana.locator('.cheers-overlay').isVisible())
 await ben.screenshot({ path: SHOTS + '07-room-ben.png', fullPage: true })
 
 // Cleanup: both leave the room.
+await ana.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
 await ana.getByRole('button', { name: 'End the night' }).click()
 await ana.getByRole('button', { name: /End night and make recap/ }).click()
 await ana.locator('.app-nav__item', { hasText: 'Crew' }).click()

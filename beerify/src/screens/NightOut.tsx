@@ -9,6 +9,7 @@ import DrinkIcon from '../components/DrinkIcon'
 import { sendRoomEvent, useRoom } from '../lib/room'
 import { MemberRow } from '../components/Squad'
 import { nativeTap } from '../lib/native'
+import RoomCountdown from '../components/RoomCountdown'
 
 interface Props {
   session: NightSession
@@ -64,8 +65,6 @@ export default function NightOut({ session, profile, preferences, membership, on
     inSession: true,
   } : null
   const { room, refresh } = useRoom(membership, self, 5_000)
-  const countdown = room?.events.filter((event) => event.type === 'cheers-countdown' && event.startsAt && event.startsAt > now - 2_000).at(-1)
-  const countdownNumber = countdown?.startsAt ? Math.max(0, Math.ceil((countdown.startsAt - now) / 1_000)) : null
 
   async function log(presetId: string) {
     const logged = onLogDrink(presetId)
@@ -117,7 +116,7 @@ export default function NightOut({ session, profile, preferences, membership, on
           <div className="night-crew-actions">
             <button onClick={() => sendRoomEvent(membership, 'reaction', { reaction: 'cheers' }).then(() => refresh()).catch(() => {})}>🍻 Cheers</button>
             <button onClick={() => sendRoomEvent(membership, 'cheers-countdown').then(() => refresh()).catch(() => {})}>⏱ Drink up</button>
-            <button onClick={() => sendRoomEvent(membership, 'round-invite').then(() => refresh()).catch(() => {})}>＋ Next round</button>
+            <button disabled={Boolean(room.activeRound)} onClick={() => sendRoomEvent(membership, 'round-invite').then(() => refresh()).catch(() => {})}>{room.activeRound ? 'Round open' : '＋ Next round'}</button>
           </div>
         </section>
       )}
@@ -147,12 +146,7 @@ export default function NightOut({ session, profile, preferences, membership, on
         </section>
       )}
 
-      {countdownNumber !== null && (
-        <div className="cheers-overlay" role="status" aria-live="assertive">
-          <span>{countdownNumber > 0 ? countdownNumber : '🍻'}</span>
-          <strong>{countdownNumber > 0 ? `${countdown?.actorName ?? 'The room'} called drink up` : 'CHEERS'}</strong>
-        </div>
-      )}
+      {room && <RoomCountdown events={room.events} />}
 
       <dialog ref={drinksDialog} className="native-dialog drink-dialog" aria-labelledby="all-drinks-title">
         <div className="dialog-sheet dialog-sheet--tall">

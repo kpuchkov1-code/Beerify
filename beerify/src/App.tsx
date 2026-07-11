@@ -12,6 +12,7 @@ import Crew from './screens/Crew'
 import History from './screens/History'
 import ProfileScreen from './screens/Profile'
 import AppNav, { type AppTab } from './components/AppNav'
+import ActiveNightNav from './components/ActiveNightNav'
 
 const INITIAL_PARAMS = new URLSearchParams(location.search)
 const INITIAL_ROOM_CODE = /^[A-Z2-9]{6}$/.test(INITIAL_PARAMS.get('room')?.toUpperCase() ?? '')
@@ -24,7 +25,7 @@ export default function App() {
   const [viewingSummary, setViewingSummary] = useState<NightSession | null>(null)
   const invitedCode = INITIAL_ROOM_CODE
   const [tab, setTab] = useState<AppTab>(invitedCode ? 'crew' : 'tonight')
-  const screenKey = !data.profile ? 'setup' : viewingSummary?.id ?? (data.session ? 'night' : tab)
+  const screenKey = !data.profile ? 'setup' : viewingSummary?.id ?? (data.session ? `night-${tab}` : tab)
 
   useEffect(() => saveData(data), [data])
 
@@ -63,6 +64,7 @@ export default function App() {
   function startNight(targetId: TargetId, mealState: MealState) {
     const now = Date.now()
     const target = TARGETS[targetId]
+    setTab('tonight')
     setData((current) => ({
       ...current,
       session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, drinks: [], waters: [] },
@@ -145,6 +147,7 @@ export default function App() {
 
   function leaveRoom() {
     setData((current) => ({ ...current, room: null }))
+    if (data.session) setTab('tonight')
   }
 
   function updatePreset(preset: DrinkPreset) {
@@ -188,36 +191,22 @@ export default function App() {
     return <Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} />
   }
 
-  if (data.session) {
-    return (
-      <NightOut
-        session={data.session}
-        profile={data.profile}
-        preferences={data.preferences}
-        membership={data.room}
-        onLogDrink={logDrink}
-        onLogWater={logWater}
-        onUndo={undoDrink}
-        onUpdateDrink={updateDrink}
-        onEndNight={endNight}
-        onToggleFavorite={toggleFavorite}
-        onSavePreset={updatePreset}
-      />
-    )
-  }
-
   const content = tab === 'tonight'
-    ? <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
+    ? data.session
+      ? <NightOut session={data.session} profile={data.profile} preferences={data.preferences} membership={data.room} onLogDrink={logDrink} onLogWater={logWater} onUndo={undoDrink} onUpdateDrink={updateDrink} onEndNight={endNight} onToggleFavorite={toggleFavorite} onSavePreset={updatePreset} />
+      : <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
     : tab === 'crew'
-      ? <Crew profile={data.profile} membership={data.room} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} onOpenTonight={() => setTab('tonight')} />
+      ? <Crew profile={data.profile} membership={data.room} session={data.session} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} onOpenTonight={() => setTab('tonight')} />
       : tab === 'history'
         ? <History history={data.history} onOpenSummary={openSummary} />
         : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />
 
   return (
-    <div className="app-shell">
+    <div className={data.session ? 'active-night-shell' : 'app-shell'}>
       {content}
-      <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />
+      {data.session
+        ? <ActiveNightNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />
+        : <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />}
     </div>
   )
 }

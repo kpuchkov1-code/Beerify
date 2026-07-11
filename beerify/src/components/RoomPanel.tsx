@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import type { LeaderboardMetric, LeaderboardMode, Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
+import type { LeaderboardMetric, LeaderboardMode, NightSession, Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
 import { TARGET_ORDER, TARGETS } from '../lib/drinks'
 import { configureRoom, createRoom, inviteUrl, joinRoom, leaveRoom, sendRoomEvent, trackMetric, useRoom } from '../lib/room'
+import { estimateBacRange } from '../lib/bac'
+import { zoneStatus } from '../lib/coach'
 import { MemberRow } from './Squad'
 import DrinkIcon from './DrinkIcon'
+import RoomCountdown from './RoomCountdown'
 import { nativeShare } from '../lib/native'
 
 interface Props {
   profile: Profile
   membership: RoomMembership | null
+  session: NightSession | null
   initialCode?: string
   onJoin: (membership: RoomMembership) => void
   onLeave: () => void
@@ -27,6 +31,21 @@ const REACTIONS: { id: RoomReaction; label: string; icon: string }[] = [
 
 function restingMember(profile: Profile): Omit<SquadMember, 'id' | 'updatedAt'> {
   return { name: profile.name, bac: 0, units: 0, drinks: 0, distinctDrinks: 0, targetId: 'glow', status: 'sober', inSession: false }
+}
+
+function currentMember(profile: Profile, session: NightSession | null): Omit<SquadMember, 'id' | 'updatedAt'> {
+  if (!session) return restingMember(profile)
+  const bac = estimateBacRange(session.drinks, profile, Date.now(), session.mealState).likely
+  return {
+    name: profile.name,
+    bac,
+    units: session.drinks.reduce((sum, drink) => sum + drink.units, 0),
+    drinks: session.drinks.length,
+    distinctDrinks: new Set(session.drinks.map((drink) => drink.presetId)).size,
+    targetId: session.targetId,
+    status: zoneStatus(bac, session),
+    inSession: true,
+  }
 }
 
 const LEADERBOARD_LABELS: Record<LeaderboardMetric, string> = { rounds: 'Round Boss', reactions: 'Hype Merchant', activity: 'Most Active', variety: 'Menu Explorer', drinks: 'Drinks', units: 'Units', bac: 'Current BAC' }
@@ -51,14 +70,15 @@ function timeAgo(at: number): string {
   return minutes < 1 ? 'now' : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
 }
 
-export default function RoomPanel({ profile, membership, initialCode = '', onJoin, onLeave, onOpenTonight }: Props) {
+export default function RoomPanel({ profile, membership, session, initialCode = '', onJoin, onLeave, onOpenTonight }: Props) {
   const [joinCode, setJoinCode] = useState(initialCode)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState('')
   const [order, setOrder] = useState('')
   const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode | null>(null)
-  const self = membership ? { id: membership.memberId, ...restingMember(profile) } : null
+  const member = currentMember(profile, session)
+  const self = membership ? { id: membership.memberId, ...member } : null
   const { room, error: roomError, refresh } = useRoom(membership, self, 5_000)
   const lastBuyer = room?.roundRota.at(-1)
   const lastBuyerIndex = room?.members.findIndex((member) => member.id === lastBuyer) ?? -1
@@ -76,7 +96,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
     setBusy(true); setError(null)
     try {
       if (!leaderboardMode) { setError('Choose the room leaderboard first'); return }
-      const result = await createRoom(profile.name, restingMember(profile), profile.id, leaderboardMode)
+      const result = await createRoom(profile.name, member, profile.id, leaderboardMode)
       onJoin(result.membership)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open a room')
@@ -88,7 +108,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
     if (!/^[A-Z2-9]{6}$/.test(code)) { setError('Room codes use 6 letters or numbers'); return }
     setBusy(true); setError(null)
     try {
-      const result = await joinRoom(code, restingMember(profile), profile.id)
+      const result = await joinRoom(code, member, profile.id)
       onJoin(result.membership)
       setJoinCode('')
     } catch (cause) {
@@ -170,12 +190,13 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
         <button className="btn btn--primary" onClick={handleShare}>Invite crew</button>
       </section>
 
-      <section className="room-start-callout">
+      {!session && <section className="room-start-callout">
         <div><h2>Ready to start?</h2><p>Set your vibe, then every drink will count towards this room.</p></div>
         <button className="btn btn--primary" onClick={onOpenTonight}>Start logging drinks</button>
-      </section>
+      </section>}
 
       {(error || roomError) && <p className="inline-error" role="alert">{error || roomError}</p>}
+      {session && room && <RoomCountdown events={room.events} />}
 
       <section className="crew-section">
         <div className="section-heading"><h2>Who's in</h2><span>{room?.members.length ?? 0}/{20}</span></div>
