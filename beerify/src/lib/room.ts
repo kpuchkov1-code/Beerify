@@ -6,6 +6,7 @@ import type {
   RoomState,
   SquadMember,
   TargetId,
+  LeaderboardMode,
 } from '../types'
 import { apiUrl, publicAppOrigin } from './platform'
 import { newId } from './storage'
@@ -18,8 +19,8 @@ export function avatarFor(id: string): string {
   return AVATARS[(hash >>> 0) % AVATARS.length]
 }
 
-function credentials(isHost: boolean): RoomMembership {
-  return { code: '', memberId: newId(), memberToken: newId(), isHost }
+function credentials(isHost: boolean, memberId: string): RoomMembership {
+  return { code: '', memberId, memberToken: newId(), isHost }
 }
 
 class RoomRequestError extends Error {
@@ -44,8 +45,10 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
 export async function createRoom(
   name: string,
   member: Omit<SquadMember, 'id' | 'updatedAt'>,
+  memberId: string,
+  leaderboardMode: LeaderboardMode,
 ): Promise<{ membership: RoomMembership; room: RoomState }> {
-  const membership = credentials(true)
+  const membership = credentials(true, memberId)
   const body = await request('/api/room', {
     method: 'POST',
     body: JSON.stringify({
@@ -53,6 +56,7 @@ export async function createRoom(
       name: `${name.split(' ')[0] || name}'s night`,
       memberToken: membership.memberToken,
       member: { ...member, id: membership.memberId },
+      leaderboardMode,
     }),
   }) as { code: string; room: RoomState }
   membership.code = body.code
@@ -62,8 +66,9 @@ export async function createRoom(
 export async function joinRoom(
   code: string,
   member: Omit<SquadMember, 'id' | 'updatedAt'>,
+  memberId: string,
 ): Promise<{ membership: RoomMembership; room: RoomState }> {
-  const membership = { ...credentials(false), code: code.trim().toUpperCase() }
+  const membership = { ...credentials(false, memberId), code: code.trim().toUpperCase() }
   const room = await pushMember(membership, { ...member, id: membership.memberId })
   trackMetric('room_joined')
   return { membership, room }
@@ -85,7 +90,7 @@ export async function pushMember(
 
 export async function configureRoom(
   membership: RoomMembership,
-  values: { name: string; theme: RoomState['theme']; labels: Partial<Record<TargetId, string>> },
+  values: { name: string; theme: RoomState['theme']; labels: Partial<Record<TargetId, string>>; leaderboardMode: LeaderboardMode },
 ): Promise<RoomState> {
   return await request('/api/room', {
     method: 'POST',

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DRINKER_LEVELS, type DrinkerLevel, type Profile, type Sex } from '../types'
+import { newId } from '../lib/storage'
 
 interface Props { onDone: (profile: Profile) => void }
 
@@ -15,6 +16,8 @@ export default function Onboarding({ onDone }: Props) {
   const [weight, setWeight] = useState('')
   const [sex, setSex] = useState<Sex | null>(null)
   const [drinkerLevel, setDrinkerLevel] = useState<DrinkerLevel | null>(null)
+  const [age, setAge] = useState('')
+  const [height, setHeight] = useState('')
   const weightKg = Number(weight)
   const weightValid = Number.isFinite(weightKg) && weightKg >= 35 && weightKg <= 250
 
@@ -66,7 +69,7 @@ export default function Onboarding({ onDone }: Props) {
           disabled={!drinkerLevel}
           onClick={() => {
             const now = Date.now()
-            onDone({ name: name.trim(), weightKg, sex: sex!, drinkerLevel: drinkerLevel!, createdAt: now, updatedAt: now })
+            onDone({ id: newId(), name: name.trim(), weightKg, sex: sex!, drinkerLevel: drinkerLevel!, age: age ? Number(age) : undefined, heightCm: height ? Number(height) : undefined, createdAt: now, updatedAt: now })
           }}
         >Enter Beerify</button>
       </main>
@@ -101,7 +104,16 @@ export default function Onboarding({ onDone }: Props) {
         </div>
       </fieldset>
 
-      <button className="btn btn--primary btn--big" disabled={!name.trim() || !weightValid || !sex} onClick={() => setStep(2)}>Next: pub credentials</button>
+      <details className="accuracy-details">
+        <summary>Improve estimate accuracy <span>Optional</span></summary>
+        <p>Age and height let Beerify estimate total body water instead of using a broad average.</p>
+        <div>
+          <label className="field"><span className="field__label">Age</span><input type="number" inputMode="numeric" min="18" max="100" value={age} placeholder="28" onChange={(event) => setAge(event.target.value)} /></label>
+          <label className="field"><span className="field__label">Height in cm</span><input type="number" inputMode="decimal" min="120" max="230" value={height} placeholder="175" onChange={(event) => setHeight(event.target.value)} /></label>
+        </div>
+      </details>
+
+      <button className="btn btn--primary btn--big" disabled={!name.trim() || !weightValid || !sex || (age !== '' && (Number(age) < 18 || Number(age) > 100)) || (height !== '' && (Number(height) < 120 || Number(height) > 230))} onClick={() => setStep(2)}>Next: pub credentials</button>
     </main>
   )
 }

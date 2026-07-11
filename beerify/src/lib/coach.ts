@@ -9,7 +9,7 @@ function pick<T>(values: T[], seed: number): T {
 }
 
 export function zoneStatus(bac: number, session: NightSession): ZoneStatus {
-  const target = TARGETS[session.targetId]
+  const target = session.targetSnapshot ?? TARGETS[session.targetId]
   if (bac < 0.005) return 'sober'
   if (bac < target.minBac) return 'warming'
   if (bac <= target.maxBac) return 'in-zone'
@@ -27,11 +27,11 @@ function recentWater(session: NightSession, now: number): boolean {
 }
 
 export function coachMessage(session: NightSession, profile: Profile, now: number): CoachMessage {
-  const bac = estimateBac(session.drinks, profile, now)
-  const inThirty = projectBac(session.drinks, profile, now, 30)
+  const bac = estimateBac(session.drinks, profile, now, session.mealState)
+  const inThirty = projectBac(session.drinks, profile, now, 30, session.mealState)
   const rising = inThirty > bac + 0.002
   const status = zoneStatus(bac, session)
-  const target = TARGETS[session.targetId]
+  const target = session.targetSnapshot ?? TARGETS[session.targetId]
   const seed = session.drinks.length * 7 + session.waters.length * 3 + Math.floor(now / 600_000)
   const sinceLast = minutesSinceLastDrink(session, now)
   const hadWater = recentWater(session, now)
@@ -76,7 +76,7 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
   }
 
   if (status === 'in-zone') {
-    const overshoot = rising && projectBac(session.drinks, profile, now, 45) > target.maxBac
+    const overshoot = rising && projectBac(session.drinks, profile, now, 45, session.mealState) > target.maxBac
     if (overshoot) {
       return {
         tone: 'nudge',
@@ -92,7 +92,7 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
     return { tone: 'cheer', text: pick(lines, seed), tip: hadWater ? undefined : 'A water keeps the group chat coherent.' }
   }
 
-  const minsBack = minutesUntilBac(session.drinks, profile, now, target.maxBac)
+  const minsBack = minutesUntilBac(session.drinks, profile, now, target.maxBac, session.mealState)
   if (status === 'over') {
     return {
       tone: 'nudge',
@@ -116,9 +116,9 @@ export function morningVerdict(session: NightSession, profile: Profile): { headl
   if (session.drinks.length === 0) {
     return { headline: 'A clerical error? 🌙', body: 'Zero drinks logged. The room will need witnesses.' }
   }
-  const target = TARGETS[session.targetId]
-  const end = Math.max(session.endedAt ?? Date.now(), fullyAbsorbedAt(session.drinks, session.startedAt))
-  const points = bacTimeline(session.drinks, profile, session.startedAt, end, 5)
+  const target = session.targetSnapshot ?? TARGETS[session.targetId]
+  const end = Math.max(session.endedAt ?? Date.now(), fullyAbsorbedAt(session.drinks, session.startedAt, session.mealState))
+  const points = bacTimeline(session.drinks, profile, session.startedAt, end, 5, session.mealState)
   const peak = points.reduce((value, point) => Math.max(value, point.bac), 0)
   const overMinutes = points.filter((point) => point.bac > target.maxBac).length * 5
 

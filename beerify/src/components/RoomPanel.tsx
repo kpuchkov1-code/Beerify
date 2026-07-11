@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import type { Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
+import type { LeaderboardMetric, LeaderboardMode, Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
 import { TARGET_ORDER, TARGETS } from '../lib/drinks'
 import { configureRoom, createRoom, inviteUrl, joinRoom, leaveRoom, sendRoomEvent, trackMetric, useRoom } from '../lib/room'
 import { MemberRow } from './Squad'
@@ -25,8 +25,10 @@ const REACTIONS: { id: RoomReaction; label: string; icon: string }[] = [
 ]
 
 function restingMember(profile: Profile): Omit<SquadMember, 'id' | 'updatedAt'> {
-  return { name: profile.name, bac: 0, units: 0, drinks: 0, targetId: 'glow', status: 'sober', inSession: false }
+  return { name: profile.name, bac: 0, units: 0, drinks: 0, distinctDrinks: 0, targetId: 'glow', status: 'sober', inSession: false }
 }
+
+const LEADERBOARD_LABELS: Record<LeaderboardMetric, string> = { rounds: 'Round Boss', reactions: 'Hype Merchant', activity: 'Most Active', variety: 'Menu Explorer', drinks: 'Drinks', units: 'Units', bac: 'Current BAC' }
 
 function eventCopy(event: RoomEvent): string {
   if (event.type === 'drink' && event.drink) return `logged ${event.drink.brand || event.drink.name}`
@@ -49,6 +51,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState('')
   const [order, setOrder] = useState('')
+  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode | null>(null)
   const self = membership ? { id: membership.memberId, ...restingMember(profile) } : null
   const { room, error: roomError, refresh } = useRoom(membership, self, 5_000)
   const lastBuyer = room?.roundRota.at(-1)
@@ -65,7 +68,8 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
   async function handleCreate() {
     setBusy(true); setError(null)
     try {
-      const result = await createRoom(profile.name, restingMember(profile))
+      if (!leaderboardMode) { setError('Choose the room leaderboard first'); return }
+      const result = await createRoom(profile.name, restingMember(profile), profile.id, leaderboardMode)
       onJoin(result.membership)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open a room')
@@ -77,7 +81,7 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
     if (!/^[A-Z2-9]{6}$/.test(code)) { setError('Room codes use 6 letters or numbers'); return }
     setBusy(true); setError(null)
     try {
-      const result = await joinRoom(code, restingMember(profile))
+      const result = await joinRoom(code, restingMember(profile), profile.id)
       onJoin(result.membership)
       setJoinCode('')
     } catch (cause) {
@@ -104,6 +108,26 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
     } catch { /* The share sheet was dismissed. */ }
   }
 
+  async function shareLeaderboard() {
+    if (!room) return
+    const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1350
+    const context = canvas.getContext('2d')!; context.fillStyle = '#10241c'; context.fillRect(0, 0, 1080, 1350)
+    context.fillStyle = '#f1ba3e'; context.font = '900 72px Archivo, sans-serif'; context.fillText('BEERIFY LEADERBOARD', 70, 130)
+    context.fillStyle = '#f5f7f2'; context.font = '800 54px Archivo, sans-serif'; context.fillText(room.name, 70, 220)
+    let y = 330
+    for (const [metric, entries] of Object.entries(room.leaderboard.categories)) {
+      if (!entries?.length) continue
+      context.fillStyle = '#f1ba3e'; context.font = '800 32px Archivo, sans-serif'; context.fillText(LEADERBOARD_LABELS[metric as LeaderboardMetric].toUpperCase(), 70, y); y += 52
+      context.fillStyle = '#f5f7f2'; context.font = '700 38px Archivo, sans-serif'
+      entries.slice(0, 3).forEach((entry, index) => { context.fillText(`${index + 1}. ${entry.name}`, 90, y); context.fillText(String(Number(entry.value.toFixed(3))), 840, y); y += 50 })
+      y += 28; if (y > 1220) break
+    }
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')); if (!blob) return
+    const file = new File([blob], 'beerify-leaderboard.png', { type: 'image/png' })
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: `${room.name} leaderboard` })
+    else { const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = file.name; anchor.click(); URL.revokeObjectURL(url) }
+  }
+
   if (!membership) {
     return (
       <div className="room-entry">
@@ -111,7 +135,8 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
           <span className="room-entry__mark" aria-hidden="true">♟</span>
           <h2>Open tonight's room</h2>
           <p>One link for the order, the reactions and the evidence.</p>
-          <button className="btn btn--primary btn--big" disabled={busy} onClick={handleCreate}>{busy ? 'Opening room…' : 'Create room'}</button>
+          <fieldset className="leaderboard-choice fieldset-reset"><legend>Choose the leaderboard</legend>{(['social', 'balanced', 'chaos'] as const).map((mode) => <button key={mode} aria-pressed={leaderboardMode === mode} className={leaderboardMode === mode ? 'chip chip--active' : 'chip'} onClick={() => setLeaderboardMode(mode)}>{mode === 'social' ? 'Social' : mode === 'balanced' ? 'Social + drinks' : 'Maximum chaos'}</button>)}</fieldset>
+          <button className="btn btn--primary btn--big" disabled={busy || !leaderboardMode} onClick={handleCreate}>{busy ? 'Opening room…' : 'Create room'}</button>
         </section>
         <div className="room-entry__or"><span>or join the others</span></div>
         <div className="room-code-form">
@@ -138,6 +163,8 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
           {(room?.members ?? []).map((member) => <MemberRow key={member.id} member={member} isSelf={member.id === membership.memberId} />)}
         </ul>
       </section>
+
+      {room && <section className="leaderboard-panel"><div className="section-heading"><h2>Leaderboard</h2><button className="text-action" onClick={shareLeaderboard}>Share card</button></div><p className="leaderboard-panel__mode">{room.leaderboardMode === 'social' ? 'Social' : room.leaderboardMode === 'balanced' ? 'Social + drinks' : 'Maximum chaos'} mode</p><div className="leaderboard-categories">{Object.entries(room.leaderboard.categories).map(([metric, entries]) => entries?.length ? <article key={metric}><h3>{LEADERBOARD_LABELS[metric as LeaderboardMetric]}</h3><ol>{entries.map((entry, index) => <li key={entry.memberId}><span><b>{index + 1}</b>{entry.name}</span><strong>{metric === 'bac' ? entry.value.toFixed(3).replace(/^0/, '') : metric === 'units' ? entry.value.toFixed(1) : entry.value}</strong></li>)}</ol></article> : null)}</div></section>}
 
       <section className="ritual-panel">
         <div className="section-heading"><h2>Make some noise</h2></div>
@@ -184,10 +211,11 @@ export default function RoomPanel({ profile, membership, initialCode = '', onJoi
             event.preventDefault()
             const form = new FormData(event.currentTarget)
             const labels = Object.fromEntries(TARGET_ORDER.map((id) => [id, String(form.get(id) ?? '')])) as Record<TargetId, string>
-            try { await configureRoom(membership, { name: String(form.get('name') ?? room.name), theme: String(form.get('theme')) as 'green' | 'red' | 'blue', labels }); refresh() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save room settings') }
+            try { await configureRoom(membership, { name: String(form.get('name') ?? room.name), theme: String(form.get('theme')) as 'green' | 'red' | 'blue', labels, leaderboardMode: String(form.get('leaderboardMode')) as LeaderboardMode }); refresh() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save room settings') }
           }}>
             <label className="field"><span className="field__label">Room name</span><input name="name" defaultValue={room.name} maxLength={36} /></label>
             <label className="field"><span className="field__label">Room colour</span><select name="theme" defaultValue={room.theme}><option value="green">Bottle green</option><option value="red">Pub red</option><option value="blue">Electric blue</option></select></label>
+            <label className="field"><span className="field__label">Leaderboard</span><select name="leaderboardMode" defaultValue={room.leaderboardMode}><option value="social">Social</option><option value="balanced">Social + drinks</option><option value="chaos">Maximum chaos</option></select></label>
             <div className="slang-grid">{TARGET_ORDER.map((id) => <label key={id}><span>{TARGETS[id].label}</span><input name={id} defaultValue={room.labels[id] ?? ''} placeholder="Keep default" maxLength={24} /></label>)}</div>
             <button className="btn btn--secondary" type="submit">Save room style</button>
           </form>

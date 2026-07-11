@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppData, DrinkPreset, LoggedDrink, NightSession, Profile, RoomMembership, RoomState, TargetId } from './types'
-import { logFromPreset, presetById } from './lib/drinks'
+import type { AppData, DrinkPreset, LoggedDrink, MealState, NightSession, Profile, RoomMembership, RoomState, TargetId } from './types'
+import { logFromPreset, presetById, TARGETS } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
 import { currentSession, supabase, syncAccountData } from './lib/account'
 import { trackMetric } from './lib/room'
@@ -60,11 +60,12 @@ export default function App() {
     setData((current) => ({ ...current, profile: { ...profile, updatedAt: Date.now() } }))
   }
 
-  function startNight(targetId: TargetId) {
+  function startNight(targetId: TargetId, mealState: MealState) {
     const now = Date.now()
+    const target = TARGETS[targetId]
     setData((current) => ({
       ...current,
-      session: { id: newId(), startedAt: now, updatedAt: now, targetId, drinks: [], waters: [] },
+      session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, drinks: [], waters: [] },
       preferences: { ...current.preferences, lastTargetId: targetId, updatedAt: now },
     }))
   }
@@ -111,6 +112,13 @@ export default function App() {
     } : current)
   }
 
+  function updateDrink(drink: LoggedDrink) {
+    setData((current) => current.session ? {
+      ...current,
+      session: { ...current.session, updatedAt: Date.now(), drinks: current.session.drinks.map((item) => item.id === drink.id ? drink : item) },
+    } : current)
+  }
+
   function endNight(room?: RoomState | null) {
     setData((current) => {
       if (!current.session) return current
@@ -119,6 +127,9 @@ export default function App() {
         ...current.session,
         roomName: room?.name,
         roomEvents: room?.events,
+        roomMembers: room?.members.map(({ id, name }) => ({ id, name })),
+        roomLeaderboard: room?.leaderboard,
+        roomConfig: room ? { name: room.name, theme: room.theme, labels: room.labels, leaderboardMode: room.leaderboardMode } : undefined,
         endedAt: now,
         updatedAt: now,
       }
@@ -186,6 +197,7 @@ export default function App() {
         onLogDrink={logDrink}
         onLogWater={logWater}
         onUndo={undoDrink}
+        onUpdateDrink={updateDrink}
         onEndNight={endNight}
         onToggleFavorite={toggleFavorite}
         onSavePreset={updatePreset}

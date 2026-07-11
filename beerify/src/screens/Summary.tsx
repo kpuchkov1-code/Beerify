@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { NightSession, Profile, RoomEvent } from '../types'
-import { bacTimeline, formatBac, fullyAbsorbedAt, minutesUntilBac } from '../lib/bac'
+import { bacTimeline, estimateBacRange, formatBac, fullyAbsorbedAt, minutesUntilBac } from '../lib/bac'
 import { TARGETS } from '../lib/drinks'
 import { morningVerdict } from '../lib/coach'
 import { formatNightDate, formatTime, formatUnits } from '../lib/format'
@@ -39,10 +39,11 @@ export default function Summary({ session, history, profile, onClose }: Props) {
   const [shareStatus, setShareStatus] = useState('')
   const end = session.endedAt ?? Date.now()
   const stats = useMemo(() => {
-    const analysisEnd = Math.max(end, fullyAbsorbedAt(session.drinks, end))
-    const timeline = bacTimeline(session.drinks, profile, session.startedAt, analysisEnd, 1)
+    const analysisEnd = Math.max(end, fullyAbsorbedAt(session.drinks, end, session.mealState))
+    const timeline = bacTimeline(session.drinks, profile, session.startedAt, analysisEnd, 1, session.mealState)
     const peakPoint = timeline.reduce((peak, point) => point.bac > peak.bac ? point : peak, { at: session.startedAt, bac: 0 })
-    const soberInMin = minutesUntilBac(session.drinks, profile, end, 0.005)
+    const soberInMin = minutesUntilBac(session.drinks, profile, end, 0.005, session.mealState)
+    const peakRange = estimateBacRange(session.drinks, profile, peakPoint.at, session.mealState)
     const byDrink = new Map<string, { name: string; icon: typeof session.drinks[number]['icon']; logoUrl?: string; brand?: string; count: number; units: number }>()
     for (const drink of session.drinks) {
       const key = drink.brand || drink.name
@@ -52,6 +53,7 @@ export default function Summary({ session, history, profile, onClose }: Props) {
     return {
       totalUnits: session.drinks.reduce((sum, drink) => sum + drink.units, 0),
       peak: peakPoint.bac,
+      peakRange,
       peakAt: peakPoint.at,
       soberAt: end + soberInMin * 60_000,
       soberInMin,
@@ -59,7 +61,7 @@ export default function Summary({ session, history, profile, onClose }: Props) {
     }
   }, [session, profile, end])
   const verdict = morningVerdict(session, profile)
-  const target = TARGETS[session.targetId]
+  const target = session.targetSnapshot ?? TARGETS[session.targetId]
   const nightAwards = awards(session)
   const sevenDaysAgo = end - 7 * 24 * 60 * 60_000
   const recentSessions = new Map([...history, session].map((item) => [item.id, item]))
@@ -100,7 +102,7 @@ export default function Summary({ session, history, profile, onClose }: Props) {
     <main className="screen summary">
       <header className="summary__masthead"><div className="brand-lockup brand-lockup--small"><span className="brand-lockup__mark">B</span><span>NIGHT TAB</span></div><span>{formatNightDate(session.startedAt)}</span></header>
       <section className="summary__headline"><span>{target.emoji}</span><h1>{verdict.headline}</h1><p>{verdict.body}</p></section>
-      <dl className="summary-metrics"><div><dt>Drinks</dt><dd>{session.drinks.length}</dd></div><div><dt>Units</dt><dd>{formatUnits(stats.totalUnits)}</dd></div><div><dt>Peak</dt><dd>{formatBac(stats.peak)}</dd><small>{formatTime(stats.peakAt)}</small></div><div><dt>Water</dt><dd>{session.waters.length}</dd></div></dl>
+      <dl className="summary-metrics"><div><dt>Drinks</dt><dd>{session.drinks.length}</dd></div><div><dt>Units</dt><dd>{formatUnits(stats.totalUnits)}</dd></div><div><dt>Likely peak</dt><dd>{formatBac(stats.peak)}</dd><small>{formatBac(stats.peakRange.low)}–{formatBac(stats.peakRange.high)} plausible · {formatTime(stats.peakAt)}</small></div><div><dt>Water</dt><dd>{session.waters.length}</dd></div></dl>
 
       <section className="receipt-block"><div className="section-heading"><h2>The order</h2><span>{formatUnits(stats.totalUnits)}u</span></div><ol>{stats.byDrink.map((drink) => <li key={drink.name}><DrinkIcon icon={drink.icon} size={32} logoUrl={drink.logoUrl} brand={drink.brand} /><span><strong>{drink.count}× {drink.name}</strong><small>{formatUnits(drink.units)} units</small></span></li>)}</ol></section>
 

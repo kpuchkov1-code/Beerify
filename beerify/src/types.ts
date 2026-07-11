@@ -9,10 +9,13 @@ export const DRINKER_LEVELS: { id: DrinkerLevel; label: string; detail: string }
 ]
 
 export interface Profile {
+  id: string
   name: string
   weightKg: number
   sex: Sex
   drinkerLevel: DrinkerLevel
+  age?: number
+  heightCm?: number
   createdAt: number
   updatedAt: number
 }
@@ -25,6 +28,9 @@ export type DrinkCategory =
   | 'cocktail'
   | 'shot'
   | 'soft'
+
+export type DrinkStyle = 'lager' | 'stout' | 'ipa' | 'ale' | 'cider' | 'red-wine' | 'white-wine' | 'sparkling' | 'spirit' | 'cocktail' | 'shot' | 'low-no'
+export type DrinkServe = 'pint' | 'bottle' | 'can' | '125ml' | '175ml' | '250ml' | 'single' | 'double' | 'cocktail' | 'shot'
 
 export type DrinkIconId =
   | 'pint'
@@ -55,6 +61,9 @@ export interface DrinkPreset {
   absorptionMin: number
   detail: string
   source: 'built-in' | 'custom'
+  style?: DrinkStyle
+  serve?: DrinkServe
+  country?: string
 }
 
 /** A complete snapshot: editing a preset never rewrites a past night. */
@@ -72,9 +81,12 @@ export interface LoggedDrink {
   at: number
   units: number
   grams: number
+  style?: DrinkStyle
+  serve?: DrinkServe
+  country?: string
 }
 
-export type TargetId = 'glow' | 'buzz' | 'tipsy' | 'merry' | 'bignight'
+export type TargetId = 'glow' | 'buzz' | 'wavy' | 'tipsy' | 'smashed' | 'merry' | 'bignight'
 
 export interface Target {
   id: TargetId
@@ -85,15 +97,24 @@ export interface Target {
   maxBac: number
 }
 
+export interface TargetSnapshot { id: TargetId; label: string; emoji: string; minBac: number; maxBac: number }
+export type MealState = 'empty' | 'snack' | 'meal' | 'unknown'
+export interface BacRange { low: number; likely: number; high: number; model: 'watson' | 'widmark'; completeness: 'personalised' | 'basic' }
+
 export interface NightSession {
   id: string
   startedAt: number
   updatedAt: number
   targetId: TargetId
+  targetSnapshot?: TargetSnapshot
+  mealState: MealState
   drinks: LoggedDrink[]
   waters: number[]
   roomName?: string
   roomEvents?: RoomEvent[]
+  roomMembers?: Pick<SquadMember, 'id' | 'name'>[]
+  roomLeaderboard?: RoomLeaderboard
+  roomConfig?: Pick<RoomState, 'name' | 'theme' | 'labels' | 'leaderboardMode'>
   endedAt?: number
   reviewedAt?: number
 }
@@ -123,6 +144,7 @@ export interface SquadMember {
   bac: number
   units: number
   drinks: number
+  distinctDrinks: number
   targetId: TargetId
   status: ZoneStatus
   inSession: boolean
@@ -166,6 +188,11 @@ export interface RoomRound {
   orders: { memberId: string; memberName: string; order: string }[]
 }
 
+export type LeaderboardMode = 'social' | 'balanced' | 'chaos'
+export type LeaderboardMetric = 'rounds' | 'reactions' | 'activity' | 'variety' | 'drinks' | 'units' | 'bac'
+export interface LeaderboardEntry { memberId: string; name: string; value: number }
+export interface RoomLeaderboard { mode: LeaderboardMode; categories: Partial<Record<LeaderboardMetric, LeaderboardEntry[]>> }
+
 export interface RoomState {
   code: string
   name: string
@@ -173,6 +200,8 @@ export interface RoomState {
   theme: 'green' | 'red' | 'blue'
   labels: Partial<Record<TargetId, string>>
   hostMemberId: string
+  leaderboardMode: LeaderboardMode
+  leaderboard: RoomLeaderboard
   members: SquadMember[]
   events: RoomEvent[]
   activeRound: RoomRound | null

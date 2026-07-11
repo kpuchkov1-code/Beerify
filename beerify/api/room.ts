@@ -5,7 +5,8 @@ const ROOM_TTL_SECONDS = 24 * 60 * 60
 const MEMBER_LIMIT = 20
 const EVENT_LIMIT = 50
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-const TARGETS = new Set(['glow', 'buzz', 'tipsy', 'merry', 'bignight'])
+const TARGETS = new Set(['glow', 'buzz', 'wavy', 'tipsy', 'smashed', 'merry', 'bignight'])
+const LEADERBOARD_MODES = new Set(['social', 'balanced', 'chaos'])
 const STATUSES = new Set(['sober', 'warming', 'in-zone', 'over', 'way-over'])
 const REACTIONS = new Set(['cheers', 'on-my-way', 'get-another', 'scenes', 'water-run', 'food'])
 const EVENT_TYPES = new Set(['drink', 'reaction', 'cheers-countdown', 'round-invite', 'round-order', 'round-bought'])
@@ -18,6 +19,7 @@ interface RoomMeta {
   theme: 'green' | 'red' | 'blue'
   labels: Record<string, string>
   hostMemberId: string
+  leaderboardMode?: 'social' | 'balanced' | 'chaos'
 }
 
 interface StoredMember {
@@ -26,6 +28,7 @@ interface StoredMember {
   bac: number
   units: number
   drinks: number
+  distinctDrinks: number
   targetId: string
   status: string
   inSession: boolean
@@ -158,6 +161,7 @@ function db(): Redis {
 function metaKey(code: string): string { return `beerify:room:${code}` }
 function membersKey(code: string): string { return `${metaKey(code)}:members` }
 function eventsKey(code: string): string { return `${metaKey(code)}:events` }
+function statsKey(code: string): string { return `${metaKey(code)}:stats` }
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -213,6 +217,7 @@ function sanitizeMember(value: unknown, token: string): StoredMember | null {
     bac: clamp(m.bac, 0, 0.5),
     units: clamp(m.units, 0, 200),
     drinks: Math.round(clamp(m.drinks, 0, 200)),
+    distinctDrinks: Math.round(clamp(m.distinctDrinks, 0, 200)),
     targetId,
     status,
     inSession: Boolean(m.inSession),
@@ -267,11 +272,26 @@ function activeRound(events: StoredEvent[]) {
 async function buildRoom(code: string): Promise<unknown | null> {
   const meta = await readMeta(code)
   if (!meta) return null
-  const [members, events] = await Promise.all([readMembers(code), readEvents(code)])
+  const [members, events, stats] = await Promise.all([readMembers(code), readEvents(code), db().hgetall<Record<string, number>>(statsKey(code))])
   const bought = events.filter((event) => event.type === 'round-bought').map((event) => event.actorId)
+  const publicMembers = Object.values(members).map(publicMember).sort((a, b) => a.name.localeCompare(b.name))
+  const rank = (read: (member: Omit<StoredMember, 'tokenHash'>) => number) => publicMembers
+    .map((member) => ({ memberId: member.id, name: member.name, value: read(member) }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name)).slice(0, 3)
+  const mode = meta.leaderboardMode ?? 'balanced'
+  const social = {
+    rounds: rank((member) => Number(stats?.[`${member.id}:rounds`] ?? 0)),
+    reactions: rank((member) => Number(stats?.[`${member.id}:reactions`] ?? 0)),
+    activity: rank((member) => Number(stats?.[`${member.id}:activity`] ?? 0)),
+    variety: rank((member) => member.distinctDrinks),
+  }
+  const categories = mode === 'social' ? social : { ...social, drinks: rank((member) => member.drinks), units: rank((member) => member.units), ...(mode === 'chaos' ? { bac: rank((member) => member.bac) } : {}) }
   return {
     ...meta,
-    members: Object.values(members).map(publicMember).sort((a, b) => a.name.localeCompare(b.name)),
+    leaderboardMode: mode,
+    leaderboard: { mode, categories },
+    members: publicMembers,
     events: events.map(publicEvent),
     activeRound: activeRound(events),
     roundRota: bought.slice(-MEMBER_LIMIT),
@@ -283,6 +303,7 @@ async function refreshRoom(code: string): Promise<void> {
     db().expire(metaKey(code), ROOM_TTL_SECONDS),
     db().expire(membersKey(code), ROOM_TTL_SECONDS),
     db().expire(eventsKey(code), ROOM_TTL_SECONDS),
+    db().expire(statsKey(code), ROOM_TTL_SECONDS),
   ])
 }
 
@@ -338,6 +359,7 @@ export async function POST(request: Request): Promise<Response> {
           theme: 'green',
           labels: {},
           hostMemberId: member.id,
+          leaderboardMode: typeof payload.leaderboardMode === 'string' && LEADERBOARD_MODES.has(payload.leaderboardMode) ? payload.leaderboardMode as RoomMeta['leaderboardMode'] : 'balanced',
         }
         const created = await db().set(metaKey(code), meta, { nx: true, ex: ROOM_TTL_SECONDS })
         if (!created) continue
@@ -376,7 +398,8 @@ export async function POST(request: Request): Promise<Response> {
             .map(([key, value]) => [key, cleanText(value, 24)!]))
         : meta.labels
       const theme = payload.theme === 'red' || payload.theme === 'blue' ? payload.theme : 'green'
-      const next = { ...meta, name: cleanText(payload.name, 36) ?? meta.name, labels, theme }
+      const leaderboardMode = typeof payload.leaderboardMode === 'string' && LEADERBOARD_MODES.has(payload.leaderboardMode) ? payload.leaderboardMode as RoomMeta['leaderboardMode'] : meta.leaderboardMode ?? 'balanced'
+      const next = { ...meta, name: cleanText(payload.name, 36) ?? meta.name, labels, theme, leaderboardMode }
       await db().set(metaKey(code), next, { ex: ROOM_TTL_SECONDS })
       return json(200, await buildRoom(code))
     }
@@ -417,6 +440,9 @@ export async function POST(request: Request): Promise<Response> {
         event.drink = { name, brand: cleanText(drink?.brand, 40) ?? undefined, icon, units: clamp(drink?.units, 0, 20) }
       }
       await addEvent(code, event)
+      await db().hincrby(statsKey(code), `${member.id}:activity`, 1)
+      if (type === 'reaction') await db().hincrby(statsKey(code), `${member.id}:reactions`, 1)
+      if (type === 'round-bought') await db().hincrby(statsKey(code), `${member.id}:rounds`, 1)
       await refreshRoom(code)
       return json(200, await buildRoom(code))
     }

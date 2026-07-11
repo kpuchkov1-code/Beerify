@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { NightSession, Preferences, Profile, RoomMembership, TargetId } from '../types'
+import type { MealState, NightSession, Preferences, Profile, RoomMembership, TargetId } from '../types'
 import { allPresets, TARGETS, TARGET_ORDER } from '../lib/drinks'
 import { formatNightDate, formatUnits } from '../lib/format'
 import DrinkIcon from '../components/DrinkIcon'
@@ -9,13 +9,14 @@ interface Props {
   history: NightSession[]
   preferences: Preferences
   membership: RoomMembership | null
-  onStartNight: (target: TargetId) => void
+  onStartNight: (target: TargetId, meal: MealState) => void
   onOpenSummary: (session: NightSession) => void
   onOpenCrew: () => void
 }
 
 export default function Home({ profile, history, preferences, membership, onStartNight, onOpenSummary, onOpenCrew }: Props) {
   const [target, setTarget] = useState<TargetId>(preferences.lastTargetId)
+  const [meal, setMeal] = useState<MealState>('unknown')
   const targetIndex = TARGET_ORDER.indexOf(target)
   const recent = [...history].sort((a, b) => b.startedAt - a.startedAt)[0]
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60_000
@@ -54,12 +55,13 @@ export default function Home({ profile, history, preferences, membership, onStar
             {TARGET_ORDER.map((id, index) => (
               <button key={id} className={target === id ? 'vibe-mark vibe-mark--active' : 'vibe-mark'} aria-pressed={target === id} onClick={() => setTarget(id)}>
                 <span className="vibe-mark__dot" aria-hidden="true">{index + 1}</span>
-                <span><strong>{TARGETS[id].label}</strong><small>{TARGETS[id].tagline}</small></span>
+                <span><strong>{TARGETS[id].label}</strong>{target === id && <small>{TARGETS[id].tagline}</small>}</span>
               </button>
             ))}
           </div>
         </div>
-        <button className="btn btn--primary btn--big" onClick={() => onStartNight(target)}>Start the night →</button>
+        <fieldset className="meal-picker fieldset-reset"><legend>Drinking on</legend><div>{([['empty', 'Empty'], ['snack', 'A snack'], ['meal', 'A meal'], ['unknown', 'Not sure']] as const).map(([id, label]) => <button key={id} aria-pressed={meal === id} className={meal === id ? 'chip chip--active' : 'chip'} onClick={() => setMeal(id)}>{label}</button>)}</div></fieldset>
+        <button className="btn btn--primary btn--big" onClick={() => onStartNight(target, meal)}>Start the night →</button>
       </section>
 
       <div className="home__split">

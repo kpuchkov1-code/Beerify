@@ -3,6 +3,8 @@ import type {
   DrinkCategory,
   DrinkIconId,
   DrinkPreset,
+  DrinkServe,
+  DrinkStyle,
   DrinkerLevel,
   LoggedDrink,
   NightSession,
@@ -11,6 +13,10 @@ import type {
   RoomEvent,
   RoomMembership,
   Sex,
+  MealState,
+  RoomLeaderboard,
+  RoomState,
+  TargetSnapshot,
   TargetId,
 } from '../types'
 import {
@@ -24,7 +30,7 @@ import {
 
 const KEY = 'beerify:v2'
 const LEGACY_KEY = 'beerify:v1'
-const TARGETS = new Set<TargetId>(['glow', 'buzz', 'tipsy', 'merry', 'bignight'])
+const TARGETS = new Set<TargetId>(['glow', 'buzz', 'wavy', 'tipsy', 'smashed', 'merry', 'bignight'])
 const SEXES = new Set<Sex>(['female', 'male', 'other'])
 const DRINKER_LEVELS = new Set<DrinkerLevel>(['one-pint', 'weekend', 'regular', 'full-time'])
 const CATEGORIES = new Set<DrinkCategory>(['beer', 'cider', 'wine', 'spirit', 'cocktail', 'shot', 'soft'])
@@ -32,6 +38,16 @@ const ICONS = new Set<DrinkIconId>([
   'pint', 'bottle', 'can', 'ipa', 'stout', 'cider', 'ale', 'wine-red', 'wine-white',
   'sparkling', 'spirit', 'cocktail', 'shot', 'alcopop', 'zero',
 ])
+const STYLES = new Set<DrinkStyle>(['lager', 'stout', 'ipa', 'ale', 'cider', 'red-wine', 'white-wine', 'sparkling', 'spirit', 'cocktail', 'shot', 'low-no'])
+const SERVES = new Set<DrinkServe>(['pint', 'bottle', 'can', '125ml', '175ml', '250ml', 'single', 'double', 'cocktail', 'shot'])
+const MEALS = new Set<MealState>(['empty', 'snack', 'meal', 'unknown'])
+const LEGACY_TARGETS: Record<Exclude<TargetId, 'wavy' | 'smashed'>, TargetSnapshot> = {
+  glow: { id: 'glow', label: 'Lightweight', emoji: '🙂', minBac: .01, maxBac: .03 },
+  buzz: { id: 'buzz', label: 'Buzzing', emoji: '😏', minBac: .03, maxBac: .05 },
+  tipsy: { id: 'tipsy', label: 'Pissed', emoji: '😄', minBac: .05, maxBac: .07 },
+  merry: { id: 'merry', label: 'Battered', emoji: '🥴', minBac: .07, maxBac: .09 },
+  bignight: { id: 'bignight', label: 'Blackout', emoji: '🫠', minBac: .09, maxBac: .11 },
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
@@ -65,12 +81,15 @@ function normalizeProfile(value: unknown, now: number): Profile | null {
   if (!p || !name || !finite(p.weightKg) || p.weightKg < 35 || p.weightKg > 250) return null
   if (typeof p.sex !== 'string' || !SEXES.has(p.sex as Sex)) return null
   return {
+    id: text(p.id, 100) ?? newId(),
     name,
     weightKg: p.weightKg,
     sex: p.sex as Sex,
     drinkerLevel: typeof p.drinkerLevel === 'string' && DRINKER_LEVELS.has(p.drinkerLevel as DrinkerLevel)
       ? p.drinkerLevel as DrinkerLevel
       : 'weekend',
+    age: finite(p.age) && p.age >= 18 && p.age <= 100 ? p.age : undefined,
+    heightCm: finite(p.heightCm) && p.heightCm >= 120 && p.heightCm <= 230 ? p.heightCm : undefined,
     createdAt: finite(p.createdAt) ? p.createdAt : now,
     updatedAt: finite(p.updatedAt) ? p.updatedAt : finite(p.createdAt) ? p.createdAt : now,
   }
@@ -103,6 +122,9 @@ function normalizePreset(value: unknown): DrinkPreset | null {
     absorptionMin,
     detail: `${p.volumeMl}ml · ${Number((p.abv * 100).toFixed(1))}%`,
     source: p.source === 'built-in' ? 'built-in' : 'custom',
+    style: typeof p.style === 'string' && STYLES.has(p.style as DrinkStyle) ? p.style as DrinkStyle : undefined,
+    serve: typeof p.serve === 'string' && SERVES.has(p.serve as DrinkServe) ? p.serve as DrinkServe : undefined,
+    country: text(p.country, 40) ?? undefined,
   }
 }
 
@@ -132,6 +154,9 @@ function normalizeDrink(value: unknown, custom: DrinkPreset[]): LoggedDrink | nu
     at: d.at,
     units: unitsOfAlcohol(snapshot),
     grams: gramsOfAlcohol(snapshot),
+    style: typeof d.style === 'string' && STYLES.has(d.style as DrinkStyle) ? d.style as DrinkStyle : snapshot.style,
+    serve: typeof d.serve === 'string' && SERVES.has(d.serve as DrinkServe) ? d.serve as DrinkServe : snapshot.serve,
+    country: text(d.country, 40) ?? snapshot.country,
   }
 }
 
@@ -173,17 +198,28 @@ function normalizeSession(value: unknown, custom: DrinkPreset[], now: number): N
     ? s.drinks.map((d) => normalizeDrink(d, custom)).filter((d): d is LoggedDrink => d !== null)
     : []
   const waters = Array.isArray(s.waters) ? s.waters.filter(finite) : []
+  const snapshot = record(s.targetSnapshot)
+  const legacy = LEGACY_TARGETS[s.targetId as keyof typeof LEGACY_TARGETS]
+  const targetSnapshot = snapshot && typeof snapshot.id === 'string' && TARGETS.has(snapshot.id as TargetId)
+    && text(snapshot.label, 24) && text(snapshot.emoji, 8) && finite(snapshot.minBac) && finite(snapshot.maxBac)
+    ? { id: snapshot.id as TargetId, label: text(snapshot.label, 24)!, emoji: text(snapshot.emoji, 8)!, minBac: snapshot.minBac, maxBac: snapshot.maxBac }
+    : legacy
   return {
     id,
     startedAt: s.startedAt,
     updatedAt: finite(s.updatedAt) ? s.updatedAt : finite(s.endedAt) ? s.endedAt : now,
     targetId: s.targetId as TargetId,
+    targetSnapshot,
+    mealState: typeof s.mealState === 'string' && MEALS.has(s.mealState as MealState) ? s.mealState as MealState : 'unknown',
     drinks,
     waters,
     roomName: text(s.roomName, 36) ?? undefined,
     roomEvents: Array.isArray(s.roomEvents)
       ? s.roomEvents.map(normalizeRoomEvent).filter((event): event is RoomEvent => event !== null)
       : undefined,
+    roomMembers: Array.isArray(s.roomMembers) ? s.roomMembers.map(record).filter((member): member is Record<string, unknown> => Boolean(member && text(member.id, 100) && text(member.name, 30))).map((member) => ({ id: text(member.id, 100)!, name: text(member.name, 30)! })) : undefined,
+    roomLeaderboard: record(s.roomLeaderboard) as RoomLeaderboard | undefined,
+    roomConfig: record(s.roomConfig) as NightSession['roomConfig'],
     endedAt: finite(s.endedAt) ? s.endedAt : undefined,
     reviewedAt: finite(s.reviewedAt) ? s.reviewedAt : undefined,
   }
