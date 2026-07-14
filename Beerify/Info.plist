@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_beerify-room._tcp</string>
+		<string>_beerify-room._udp</string>
+	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Beerify uses your location to find nearby pubs and plan pub crawl routes.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Beerify uses the local network to find your friends' phones so you can share a room while you're out together.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+</dict>
+</plist>
