@@ -135,12 +135,15 @@ struct StatsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(badge.emoji).font(.system(size: 32)).opacity(earned ? 1 : 0.25)
                     Text(badge.title).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text(badge.subtitle).font(.caption).foregroundStyle(Theme.inkSoft).fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                    Text(badge.subtitle).font(.caption).foregroundStyle(Theme.inkSoft)
+                        .lineLimit(2, reservesSpace: true)
                     if !earned {
                         Text("Locked").font(.caption2).foregroundStyle(Theme.inkSoft)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading).padding(12)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(12)
                 .background(RoundedRectangle(cornerRadius: 14).fill(earned ? Theme.surface.opacity(0.95) : Theme.surface.opacity(0.5)))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(earned ? Theme.accent.opacity(0.5) : Theme.hairline, lineWidth: 1))
                 .opacity(earned ? 1 : 0.75)
