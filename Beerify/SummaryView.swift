@@ -136,7 +136,7 @@ struct SummaryView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     if s.soberInMin > 5 && !session.drinks.isEmpty {
-                        Text("⏳ Your body is still processing. You'll be fully clear around **\(Fmt.time(s.soberAt))**. Take it easy until then.")
+                        Text("⏳ Your body may still be processing alcohol. Estimated clear time: around **\(Fmt.time(s.soberAt))**. This is a rough estimate, not medical advice.")
                     }
                     Text("📊 That's **\(Fmt.units(s.totalUnits))** of the \(Int(WEEKLY_GUIDELINE_UNITS)) units many health guidelines suggest as a weekly maximum\(s.totalUnits > WEEKLY_GUIDELINE_UNITS ? ". A lighter week ahead would be smart" : "").")
                     Text("🎯 Target was “\(target.label)” \(target.emoji). \(session.drinks.isEmpty ? "Nothing logged, nothing to judge!" : "Check the verdict above for how it went.")")

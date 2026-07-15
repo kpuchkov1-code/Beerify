@@ -231,7 +231,7 @@ struct NightOutView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 extrasTile(icon: "⏳",
-                           label: "Safe to drive",
+                           label: "Est. below 0.02%",
                            value: minsUntilDrive <= 0 ? "-" : Fmt.duration(minutes: minsUntilDrive),
                            tint: Theme.info)
                 extrasTile(icon: "🌅",
@@ -241,7 +241,7 @@ struct NightOutView: View {
             }
 
             if bac > 0.005 {
-                Text("Estimates only - legal limits vary by location. Never rely solely on this to decide whether to drive.")
+                Text("These are rough estimates based on the Widmark formula and are NOT medically or legally accurate. Do not use this app to determine whether you are fit to drive or operate machinery. Legal BAC limits vary by jurisdiction. When in doubt, do not drive.")
                     .font(.caption2).foregroundStyle(Theme.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }

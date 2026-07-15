@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beerify - Support</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(to bottom, #fff5dc, #ffd48a);
+            min-height: 100vh;
+            color: #3e2a10;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+        h2 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: #b8860b;
+        }
+        p, li {
+            margin-bottom: 10px;
+            color: #5a3e1b;
+        }
+        ul { padding-left: 20px; }
+        a { color: #b8860b; text-decoration: underline; }
+        .hero { text-align: center; margin-bottom: 32px; }
+        .hero .icon { font-size: 64px; }
+        .subtitle { color: #8a6d3b; font-size: 1.1rem; }
+        .card {
+            background: rgba(255,255,255,0.85);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(0,0,0,0.08);
+        }
+        .disclaimer {
+            background: rgba(184,134,11,0.1);
+            border: 1px solid rgba(184,134,11,0.3);
+            border-radius: 14px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .disclaimer p { font-size: 0.9rem; }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.85rem;
+            color: #8a6d3b;
+        }
+        .nav { text-align: center; margin-bottom: 24px; }
+        .nav a {
+            margin: 0 12px;
+            font-weight: 600;
+            text-decoration: none;
+            color: #b8860b;
+        }
+        .nav a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <div class="icon">&#127866;</div>
+            <h1>Beerify</h1>
+            <p class="subtitle">Drink smarter. Play harder.</p>
+        </div>
+
+        <div class="nav">
+            <a href="index.html">Support</a>
+            <a href="privacy.html">Privacy Policy</a>
+        </div>
+
+        <div class="card">
+            <h2>What is Beerify?</h2>
+            <p>Beerify is a social drinking companion app that helps you track your drinks, stay in your target zone, and play party games with friends. It uses the Widmark formula to provide rough BAC estimates based on your weight, sex, and drinking tolerance.</p>
+        </div>
+
+        <div class="card">
+            <h2>Support</h2>
+            <p>Having trouble with Beerify? We're here to help.</p>
+            <ul>
+                <li><strong>Email:</strong> <a href="mailto:beerifyapp@gmail.com">beerifyapp@gmail.com</a></li>
+                <li><strong>Response time:</strong> We aim to respond within 48 hours.</li>
+            </ul>
+            <p>When contacting support, please include:</p>
+            <ul>
+                <li>Your device model and iOS version</li>
+                <li>A description of the issue</li>
+                <li>Screenshots if applicable</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Frequently Asked Questions</h2>
+
+            <p><strong>Is Beerify a medical device?</strong></p>
+            <p>No. Beerify provides rough estimates only using the Widmark formula. It is not a medical device, is not FDA-approved, and must never be used to determine fitness to drive or operate machinery. Actual blood alcohol concentration depends on many factors not modelled by the app, including food intake, hydration, medication, genetics, and liver health.</p>
+
+            <p><strong>How does BAC estimation work?</strong></p>
+            <p>Beerify uses the Widmark equation (Widmark, 1932), a well-known pharmacokinetic model that estimates blood alcohol concentration from alcohol consumed, body weight, and a sex-dependent distribution ratio. Elimination rates are adapted from Jones (2010). These are population-level averages and individual results will vary significantly.</p>
+
+            <p><strong>Is my data safe?</strong></p>
+            <p>All your data stays on your device. Beerify does not collect, transmit, or store any personal information on external servers. Room sync uses peer-to-peer connections (MultipeerConnectivity) and Apple's iCloud (CloudKit) for remote sync. See our <a href="privacy.html">Privacy Policy</a> for full details.</p>
+
+            <p><strong>What is the age requirement?</strong></p>
+            <p>Beerify is rated 17+ and requires age verification during setup. You must be at least 18 years old (or the legal drinking age in your jurisdiction) to use the app.</p>
+
+            <p><strong>Can I delete my data?</strong></p>
+            <p>Yes. Go to the "You" tab, tap your profile, and use "Sign out and start over" to permanently delete all data from your device.</p>
+
+            <p><strong>Do rooms require an internet connection?</strong></p>
+            <p>Rooms work over local Wi-Fi and Bluetooth using Apple's MultipeerConnectivity framework, so they work without internet when friends are nearby. For remote friends, iCloud (CloudKit) is used, which requires an internet connection and an iCloud account.</p>
+        </div>
+
+        <div class="disclaimer">
+            <h2>Important Disclaimer</h2>
+            <p>Beerify is an entertainment and social awareness tool. It is <strong>not</strong> a medical device and does <strong>not</strong> provide medical advice. BAC estimates are approximate and based on population-level pharmacokinetic models (Widmark, 1932; Watson et al., 1981; Jones, 2010). Individual results may vary significantly due to factors including but not limited to: food consumption, hydration, medication, body composition, genetics, and liver function.</p>
+            <p><strong>Never use Beerify to determine whether you are fit to drive, operate machinery, or perform any activity that requires sobriety.</strong> Legal BAC limits vary by jurisdiction. When in doubt, do not drive. Always drink responsibly and in accordance with local laws.</p>
+        </div>
+
+        <div class="card">
+            <h2>Scientific References</h2>
+            <ul>
+                <li>Widmark, E.M.P. (1932). <em>Die theoretischen Grundlagen und die praktische Verwendbarkeit der gerichtlich-medizinischen Alkoholbestimmung.</em> Urban &amp; Schwarzenberg, Berlin.</li>
+                <li>Watson, P.E., Watson, I.D., Batt, R.D. (1981). "Prediction of blood alcohol concentrations in human subjects." <em>Journal of Studies on Alcohol</em>, 42(7), 547-556.</li>
+                <li>Jones, A.W. (2010). "Evidence-based survey of the elimination rates of ethanol from blood." <em>Forensic Science International</em>, 200(1-3), 1-20.</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2025 Beerify. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

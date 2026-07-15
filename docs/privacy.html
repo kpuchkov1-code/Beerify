@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beerify - Privacy Policy</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(to bottom, #fff5dc, #ffd48a);
+            min-height: 100vh;
+            color: #3e2a10;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+        h2 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-top: 32px;
+            margin-bottom: 12px;
+            color: #b8860b;
+        }
+        h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+        p, li {
+            margin-bottom: 10px;
+            color: #5a3e1b;
+        }
+        ul { padding-left: 20px; }
+        a { color: #b8860b; text-decoration: underline; }
+        .hero { text-align: center; margin-bottom: 32px; }
+        .hero .icon { font-size: 64px; }
+        .subtitle { color: #8a6d3b; font-size: 1.1rem; }
+        .card {
+            background: rgba(255,255,255,0.85);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(0,0,0,0.08);
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 0.85rem;
+            color: #8a6d3b;
+        }
+        .nav { text-align: center; margin-bottom: 24px; }
+        .nav a {
+            margin: 0 12px;
+            font-weight: 600;
+            text-decoration: none;
+            color: #b8860b;
+        }
+        .nav a:hover { text-decoration: underline; }
+        .updated { text-align: center; color: #8a6d3b; font-size: 0.9rem; margin-bottom: 24px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <div class="icon">&#127866;</div>
+            <h1>Privacy Policy</h1>
+            <p class="subtitle">Beerify</p>
+        </div>
+
+        <div class="nav">
+            <a href="index.html">Support</a>
+            <a href="privacy.html">Privacy Policy</a>
+        </div>
+
+        <p class="updated">Last updated: July 15, 2026</p>
+
+        <div class="card">
+            <h2>Overview</h2>
+            <p>Beerify is designed with privacy as a core principle. We do not collect, sell, or share your personal data. All information you enter into Beerify stays on your device unless you explicitly choose to use the Room feature, which syncs limited data with friends via peer-to-peer connections or iCloud.</p>
+        </div>
+
+        <div class="card">
+            <h2>Information We Do NOT Collect</h2>
+            <ul>
+                <li>We do not collect your name, email, or contact information</li>
+                <li>We do not collect analytics or usage data</li>
+                <li>We do not use third-party tracking or advertising SDKs</li>
+                <li>We do not collect your location (location permission is used only for on-device pub golf features and is never transmitted)</li>
+                <li>We do not collect your date of birth (the age verification check is performed locally and the date is not stored)</li>
+                <li>We do not have user accounts or authentication systems</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Data Stored on Your Device</h2>
+            <p>Beerify stores the following information locally on your device using UserDefaults:</p>
+            <ul>
+                <li><strong>Profile:</strong> Name, weight, sex, drinking tolerance, optional profile photo</li>
+                <li><strong>Drink history:</strong> Logged drinks with timestamps for BAC estimation</li>
+                <li><strong>Night sessions:</strong> Session records including drinks, water intake, and target zones</li>
+                <li><strong>Preferences:</strong> Coach personality, theme, spiciness level, ride home URL, home address</li>
+                <li><strong>Badges:</strong> Unlocked achievement identifiers</li>
+            </ul>
+            <p>This data never leaves your device unless you use the Room feature (see below). You can delete all data at any time by going to the "You" tab and selecting "Sign out and start over."</p>
+        </div>
+
+        <div class="card">
+            <h2>Room Feature (Peer-to-Peer and iCloud Sync)</h2>
+            <p>When you create or join a Room, limited information is shared with other room members:</p>
+            <ul>
+                <li><strong>What is shared:</strong> Your display name, current BAC estimate, drink count, target zone, session status, and game scores</li>
+                <li><strong>How it is shared:</strong> Via Apple's MultipeerConnectivity framework (local Wi-Fi/Bluetooth) and Apple's CloudKit (iCloud public database) for remote sync</li>
+                <li><strong>Who can see it:</strong> Only other members who have entered the same 4-character room code</li>
+                <li><strong>Retention:</strong> Room data in CloudKit is ephemeral and tied to the active session. When you leave a room, your record is deleted from CloudKit</li>
+            </ul>
+            <p>Room participation is entirely optional. The app is fully functional without it.</p>
+        </div>
+
+        <div class="card">
+            <h2>Local Network and Bluetooth</h2>
+            <p>Beerify uses Apple's MultipeerConnectivity framework, which requires Local Network permission. This is used solely for discovering and communicating with friends' devices in the same Room. No data is sent to external servers through this channel.</p>
+        </div>
+
+        <div class="card">
+            <h2>Push Notifications</h2>
+            <p>Beerify uses silent push notifications (via Apple Push Notification service) solely to trigger CloudKit data refreshes for Room sync. No marketing or promotional notifications are sent.</p>
+        </div>
+
+        <div class="card">
+            <h2>Third-Party Services</h2>
+            <p>Beerify does not integrate any third-party analytics, advertising, or data collection services. The only third-party service interaction is:</p>
+            <ul>
+                <li><strong>Apple CloudKit:</strong> Used for Room sync across devices not on the same local network. Data is stored in Apple's iCloud public database and is subject to <a href="https://www.apple.com/legal/privacy/">Apple's Privacy Policy</a>.</li>
+                <li><strong>Ride home links:</strong> When you tap the ride home button, Beerify opens a URL to your chosen ride service (e.g., Uber, Lyft). No data is sent from Beerify to these services; it simply opens their app or website.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>Children's Privacy</h2>
+            <p>Beerify is rated 17+ and is not intended for use by anyone under the age of 18 or the legal drinking age in their jurisdiction. Age verification is required during initial setup. We do not knowingly collect information from minors.</p>
+        </div>
+
+        <div class="card">
+            <h2>Data Deletion</h2>
+            <p>You can delete all your data at any time:</p>
+            <ul>
+                <li>Open Beerify, go to the "You" tab</li>
+                <li>Tap your profile</li>
+                <li>Select "Sign out and start over"</li>
+            </ul>
+            <p>This permanently removes all locally stored data. If you were in a Room, leaving the room before resetting will also remove your record from CloudKit.</p>
+        </div>
+
+        <div class="card">
+            <h2>Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time. Changes will be reflected on this page with an updated "Last updated" date. Continued use of the app after changes constitutes acceptance of the revised policy.</p>
+        </div>
+
+        <div class="card">
+            <h2>Contact</h2>
+            <p>If you have questions about this Privacy Policy, contact us at:</p>
+            <p><strong>Email:</strong> <a href="mailto:beerifyapp@gmail.com">beerifyapp@gmail.com</a></p>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2025 Beerify. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

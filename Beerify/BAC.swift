@@ -6,6 +6,23 @@
 //  Ported from beerify/src/lib/bac.ts - the two implementations should
 //  produce numerically identical curves.
 //
+//  DISCLAIMER: This is an educational estimate only. It is NOT a medical
+//  device and must NOT be used to determine fitness to drive or operate
+//  machinery. Actual BAC depends on many factors not modelled here
+//  (food intake, hydration, medication, genetics, liver health, etc.).
+//
+//  References:
+//  - Widmark, E.M.P. (1932). "Die theoretischen Grundlagen und die
+//    praktische Verwendbarkeit der gerichtlich-medizinischen
+//    Alkoholbestimmung." Urban & Schwarzenberg, Berlin.
+//  - Widmark r-factors (male 0.68, female 0.55) from:
+//    Watson, P.E., Watson, I.D., Batt, R.D. (1981). "Prediction of blood
+//    alcohol concentrations in human subjects." Journal of Studies on
+//    Alcohol, 42(7), 547-556.
+//  - Elimination rates (beta) adapted from:
+//    Jones, A.W. (2010). "Evidence-based survey of the elimination rates
+//    of ethanol from blood." Forensic Science International, 200(1-3), 1-20.
+//
 
 import Foundation
 

@@ -11,10 +11,21 @@ struct OnboardingView: View {
     let onDone: (Profile) -> Void
 
     @State private var step: Int = 0
+    @State private var birthDate: Date = Calendar.current.date(byAdding: .year, value: -20, to: Date()) ?? Date()
+    @State private var ageBlocked: Bool = false
+
+    private var isOldEnough: Bool {
+        let age = Calendar.current.dateComponents([.year], from: birthDate, to: Date()).year ?? 0
+        return age >= 18
+    }
 
     var body: some View {
         Group {
-            if step == 0 { welcome } else { form }
+            switch step {
+            case 0: welcome
+            case 1: ageGate
+            default: form
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BeerifyBackground())
@@ -59,7 +70,7 @@ struct OnboardingView: View {
                 .tint(Theme.accent)
                 .padding(.horizontal, 20)
 
-                Text("Estimates only, never a legal or medical measure. Never drink and drive.")
+                Text("Beerify provides rough estimates only using the Widmark formula. It is not a medical device, does not provide medical advice, and must never be used to determine fitness to drive or operate machinery. Always drink responsibly.")
                     .font(.caption)
                     .foregroundStyle(Theme.inkSoft)
                     .multilineTextAlignment(.center)
@@ -77,7 +88,66 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Step 1
+    // MARK: - Step 1: Age verification
+
+    private var ageGate: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                VStack(spacing: 12) {
+                    Text("🔞").font(.system(size: 72))
+                    Text("Age verification")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    Text("Beerify is for adults of legal drinking age. Please confirm your date of birth.")
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Theme.inkSoft)
+                        .padding(.horizontal, 20)
+                }
+                .padding(.top, 40)
+
+                DatePicker("Date of birth", selection: $birthDate,
+                           in: ...Date(),
+                           displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .padding(.horizontal, 20)
+
+                if ageBlocked {
+                    Text("You must be at least 18 years old to use Beerify.")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Theme.danger)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+                }
+
+                Button {
+                    if isOldEnough {
+                        ageBlocked = false
+                        withAnimation { step = 2 }
+                    } else {
+                        ageBlocked = true
+                    }
+                } label: {
+                    Text("Confirm")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .padding(.horizontal, 20)
+
+                Text("We don't store your date of birth. This check is required by app store guidelines.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 24)
+            }
+        }
+    }
+
+    // MARK: - Step 2: Profile form
 
     @State private var name: String = ""
     @State private var weightText: String = ""
