@@ -453,7 +453,7 @@ struct HeadsUpGame: View {
                 Text("Heads Up!")
                     .font(.system(size: 28, weight: .heavy, design: .rounded))
                     .foregroundStyle(Theme.ink)
-                Text("Hold the phone on your forehead. Your friends describe the word - guess it! Tilt down = got it. Tilt up = skip. Or use the buttons.")
+                Text("Hold the phone on your forehead with the screen facing out. Your friends describe the word - tilt face-down to score, tilt face-up to skip. Or tap the buttons.")
                     .font(.callout).foregroundStyle(Theme.inkSoft)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -490,7 +490,7 @@ struct HeadsUpGame: View {
             Text("Hold the phone on your forehead!")
                 .font(.title2.weight(.heavy)).foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
-            Text("Tilt DOWN = got it\nTilt UP = skip\n(or use the buttons)")
+            Text("Screen facing out!\nNod DOWN = got it\nLean BACK = skip\n(or tap the buttons)")
                 .font(.callout).foregroundStyle(Theme.inkSoft)
                 .multilineTextAlignment(.center)
             BigActionButton(title: "I'm ready - start!") {
@@ -654,24 +654,22 @@ struct HeadsUpGame: View {
             guard manager.isDeviceMotionAvailable else { return }
             manager.deviceMotionUpdateInterval = 0.1
             manager.startDeviceMotionUpdates()
-            // Wait a moment for the user to get the phone on their forehead
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            // Wait for the user to get the phone on their forehead
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 guard phase == .playing else { continue }
                 if let motion = manager.deviceMotion {
-                    let pitch = motion.attitude.pitch  // radians
+                    // Use gravity.z: measures whether screen faces ground (+1)
+                    // or ceiling (-1). When on forehead (screen out), z ~ 0.
+                    let gz = motion.gravity.z
                     let now = Date()
-                    // Debounce: only act once per 1.5s to prevent rapid-fire
-                    guard now.timeIntervalSince(lastTiltAction) > 1.5 else { continue }
-                    // Thresholds: ~69 degrees tilt required for deliberate action
-                    if pitch > 1.2 {
-                        // Tilted forward (nod down) = got it
+                    guard now.timeIntervalSince(lastTiltAction) > 1.2 else { continue }
+                    if gz > 0.7 {
+                        // Screen faces ground (nod down) = got it
                         await MainActor.run { lastTiltAction = now; gotWord() }
-                    } else if pitch < -0.3 {
-                        // Tilted back (lean back) = skip
-                        // Lower threshold since phone-on-forehead baseline is ~0,
-                        // so tilting back only needs to cross -0.3 (~17°)
+                    } else if gz < -0.7 {
+                        // Screen faces ceiling (tilt back) = skip
                         await MainActor.run { lastTiltAction = now; skipWord() }
                     }
                 }
