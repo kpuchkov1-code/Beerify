@@ -22,6 +22,33 @@ struct Profile: Codable, Equatable, Sendable {
     var sex: Sex
     var tolerance: Tolerance
     var createdAt: Date
+    var emoji: String?
+    var profileImageData: Data?
+
+    enum CodingKeys: String, CodingKey {
+        case name, weightKg, sex, tolerance, createdAt, emoji, profileImageData
+    }
+
+    init(name: String, weightKg: Double, sex: Sex, tolerance: Tolerance, createdAt: Date, emoji: String? = nil, profileImageData: Data? = nil) {
+        self.name = name
+        self.weightKg = weightKg
+        self.sex = sex
+        self.tolerance = tolerance
+        self.createdAt = createdAt
+        self.emoji = emoji
+        self.profileImageData = profileImageData
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        weightKg = try c.decode(Double.self, forKey: .weightKg)
+        sex = try c.decode(Sex.self, forKey: .sex)
+        tolerance = try c.decode(Tolerance.self, forKey: .tolerance)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        emoji = try? c.decode(String.self, forKey: .emoji)
+        profileImageData = try? c.decode(Data.self, forKey: .profileImageData)
+    }
 }
 
 enum DrinkTypeId: String, Codable, CaseIterable, Sendable {
@@ -200,6 +227,8 @@ struct UserPreferences: Codable, Equatable, Sendable {
     var soberMode: Bool = false
     var ddMode: Bool = false
     var rideHomeURL: String = "https://m.uber.com/"
+    /// Home address for pre-filling ride app destination.
+    var homeAddress: String = ""
     /// 1 (family-safe) → 5 (unfiltered). Games filter their prompt decks by
     /// this so users pick the vibe.
     var spiciness: Int = 3
@@ -209,7 +238,7 @@ struct UserPreferences: Codable, Equatable, Sendable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case coachPersonality, themedNight, bigThumbMode, soberMode, ddMode, rideHomeURL, spiciness, selectedDrinkVariants
+        case coachPersonality, themedNight, bigThumbMode, soberMode, ddMode, rideHomeURL, homeAddress, spiciness, selectedDrinkVariants
     }
 
     init(from decoder: Decoder) throws {
@@ -220,6 +249,7 @@ struct UserPreferences: Codable, Equatable, Sendable {
         self.soberMode = (try? c.decode(Bool.self, forKey: .soberMode)) ?? false
         self.ddMode = (try? c.decode(Bool.self, forKey: .ddMode)) ?? false
         self.rideHomeURL = (try? c.decode(String.self, forKey: .rideHomeURL)) ?? "https://m.uber.com/"
+        self.homeAddress = (try? c.decode(String.self, forKey: .homeAddress)) ?? ""
         self.spiciness = (try? c.decode(Int.self, forKey: .spiciness)) ?? 3
         self.selectedDrinkVariants = (try? c.decode([String].self, forKey: .selectedDrinkVariants)) ?? []
     }
@@ -241,7 +271,7 @@ struct RankedRoundState: Codable, Equatable, Sendable {
     /// Set once the picker reveals; index into the filtered deck.
     var revealedQuestionIdx: Int?
     /// Ten question indices (in the filtered deck) shown to guessers. Contains
-    /// the picker's actual question — but nobody knows which until the reveal.
+    /// the picker's actual question - but nobody knows which until the reveal.
     var shortlist: [Int]?
 
     init(roundId: String, pickerId: String, pickerName: String, spiciness: Int,
@@ -274,6 +304,36 @@ enum ZoneStatus: String, Sendable {
     case inZone = "in-zone"
     case over
     case wayOver = "way-over"
+}
+
+// MARK: - Pub Golf (shared over room mesh)
+
+/// A single hole on the pub golf course, Codable for mesh sharing.
+struct SharedPubGolfHole: Codable, Identifiable, Equatable, Sendable {
+    let id: String
+    let pubName: String
+    let latitude: Double
+    let longitude: Double
+    let drink: String
+    let par: Int
+}
+
+/// One member's progress through the pub golf course.
+struct PubGolfMemberProgress: Codable, Equatable, Sendable {
+    let memberId: String
+    let memberName: String
+    /// holeId -> number of sips (strokes)
+    var scores: [String: Int]
+    /// Index of the hole the member is currently on.
+    var currentHoleIndex: Int
+}
+
+/// Full pub golf game state, synced across all devices in the room.
+struct PubGolfGameState: Codable, Equatable, Sendable {
+    let gameId: String
+    let holes: [SharedPubGolfHole]
+    /// memberId -> their progress
+    var progress: [String: PubGolfMemberProgress]
 }
 
 /// Random id in the same shape the web app produces, so historical data

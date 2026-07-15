@@ -3,14 +3,14 @@
 //  Beerify
 //
 //  Animated beer mug that fills with your estimated BAC. Redesigned to look
-//  like a proper beer stein — chunky proportions, filled D-ring handle, a
+//  like a proper beer stein - chunky proportions, filled D-ring handle, a
 //  visible rim opening, thick foam head, and a contact shadow so it sits on
 //  the surface instead of floating.
 //
 
 import SwiftUI
 
-// Design coordinates — deliberately mug-shaped (roughly 1:1.3 body).
+// Design coordinates - deliberately mug-shaped (roughly 1:1.3 body).
 private let ART_WIDTH: CGFloat = 210
 private let ART_HEIGHT: CGFloat = 220
 
@@ -199,7 +199,7 @@ private struct MugArt: View {
                         ],
                         startPoint: .top, endPoint: .bottom))
 
-                    // Subtle inner wall shading — glass has thickness, so the
+                    // Subtle inner wall shading - glass has thickness, so the
                     // left and right edges catch a bit more shadow.
                     HStack(spacing: 0) {
                         LinearGradient(
@@ -220,7 +220,7 @@ private struct MugArt: View {
                 }
                 .clipShape(MugBody())
 
-                // === Rim depth cue — inner curve that dips down at center,
+                // === Rim depth cue - inner curve that dips down at center,
                 // reading as the near lip of the opening (3D hint). ===
                 Path { p in
                     p.move(to: CGPoint(x: GLASS_LEFT + 4, y: GLASS_TOP + 5))
@@ -230,7 +230,7 @@ private struct MugArt: View {
                 }
                 .stroke(Color(white: 0.20).opacity(0.75), lineWidth: 2.2)
 
-                // Bright rim highlight just below the top edge — a shine that
+                // Bright rim highlight just below the top edge - a shine that
                 // catches light along the near lip.
                 Path { p in
                     p.move(to: CGPoint(x: GLASS_LEFT + 10, y: GLASS_TOP + 2))
@@ -261,7 +261,7 @@ private struct MugArt: View {
 private struct MugBody: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
-        // Straight top with rounded bottom — classic mug silhouette.
+        // Straight top with rounded bottom - classic mug silhouette.
         p.move(to: CGPoint(x: GLASS_LEFT, y: GLASS_TOP))
         p.addLine(to: CGPoint(x: GLASS_RIGHT, y: GLASS_TOP))
         p.addLine(to: CGPoint(x: GLASS_RIGHT, y: GLASS_BOTTOM - GLASS_CORNER))
@@ -304,7 +304,7 @@ private struct LiquidLayer: View {
         let hasBeer = bac > 0.001
 
         ZStack {
-            // Deep amber body — richer beer color with proper depth
+            // Deep amber body - richer beer color with proper depth
             WaveShape(phase: phase * 0.9, amplitude: 3.5, wavelength: 48, baseline: surface)
                 .fill(LinearGradient(
                     colors: [
@@ -330,7 +330,7 @@ private struct LiquidLayer: View {
                 .fill(Color.white.opacity(0.5))
                 .blendMode(.screen)
 
-            // Foam head — a thick, dense white band above the surface
+            // Foam head - a thick, dense white band above the surface
             WaveShape(phase: phase * 0.7 + 0.5, amplitude: 4, wavelength: 54,
                       baseline: surface - 9, thickness: 14)
                 .fill(LinearGradient(
@@ -460,7 +460,7 @@ private struct FoamSpeckle: View {
     let surface: CGFloat
     let phase: Double
 
-    // Foam texture dots — top layer and slightly deeper layer.
+    // Foam texture dots - top layer and slightly deeper layer.
     private static let dots: [(x: CGFloat, dy: CGFloat, r: CGFloat)] = [
         (30, 0.5, 2.6), (40, -1.5, 1.8), (52, 0.0, 3.0), (64, -2.0, 1.9),
         (76, 0.5, 2.7), (88, -1.5, 1.7), (100, 0.0, 2.6), (112, -1.5, 2.0),

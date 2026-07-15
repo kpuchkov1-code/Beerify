@@ -15,47 +15,42 @@ struct GamesHub: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(RoomService.self) private var roomService
     @Environment(AppStore.self) private var store
-    @State private var showingSettings: Bool = false
 
     private let games: [GameEntry] = [
-        .init(id: "ranked", title: "ID Game 🔥", emoji: "🪪", subtitle: "Draw a question, rank the squad, others guess from a shortlist"),
+        // Best games first - actual mechanics, not just card-flipping
+        .init(id: "headsup", title: "Heads Up!", emoji: "📱", subtitle: "Phone on forehead - friends describe, you guess. Tilt to play!"),
+        .init(id: "psych", title: "Psych!", emoji: "🧠", subtitle: "Write fake answers to real trivia - best bluffer wins"),
+        .init(id: "hottakes", title: "Hot Takes 🔥", emoji: "🗳", subtitle: "Vote agree or disagree - minority drinks"),
+        .init(id: "bombpass", title: "Bomb Pass", emoji: "💣", subtitle: "Do the dare before the bomb blows - hot potato chaos"),
+        .init(id: "medusa", title: "Medusa", emoji: "🐍", subtitle: "Pick who you look at - mutual eye contact = both drink"),
+        .init(id: "busdriver", title: "Bus Driver", emoji: "🚌", subtitle: "Red/black, high/low, suit - classic card drinking game"),
+        .init(id: "dareladder", title: "Dare Ladder 🔥", emoji: "🪜", subtitle: "5 rungs of escalating dares - chicken out = drink double"),
+        .init(id: "flipcup", title: "Flip Cup", emoji: "⚡", subtitle: "Reaction time showdown - slowest drinks"),
+        .init(id: "whosaidit", title: "Who Said It?", emoji: "🕵️", subtitle: "Anonymous answers - guess who wrote what"),
+        .init(id: "ranked", title: "ID Game 🔥", emoji: "🪪", subtitle: "Rank the squad, others guess your question"),
+        .init(id: "hilo", title: "Higher or Lower 🔥", emoji: "📈", subtitle: "Spicy 0–10 ratings - higher or lower?"),
+        .init(id: "kings", title: "Kings Cup", emoji: "👑", subtitle: "Draw a card, follow the rule"),
         .init(id: "wyr", title: "Would You Rather 🔥", emoji: "🤔", subtitle: "Impossible dilemmas"),
         .init(id: "mlt", title: "Most Likely To 🔥", emoji: "👉", subtitle: "Everyone votes, one drinks"),
-        .init(id: "ttl", title: "Two Truths & a Lie", emoji: "🕵", subtitle: "Sell the story, spot the fake"),
-        .init(id: "kings", title: "Kings Cup", emoji: "👑", subtitle: "Draw a card, follow the rule"),
         .init(id: "nhie", title: "Never Have I Ever 🔥", emoji: "🙅", subtitle: "🟢 have · 🔴 haven't"),
-        .init(id: "roulette", title: "Roulette", emoji: "🎯", subtitle: "Pick who's next"),
-        .init(id: "hilo", title: "Higher or Lower 🔥", emoji: "📈", subtitle: "Spicy 0–10 ratings — will they be higher or lower?"),
-        .init(id: "guessbac", title: "Guess My BAC", emoji: "🎲", subtitle: "How buzzed am I?"),
         .init(id: "tod", title: "Truth or Dare 🔥", emoji: "🎭", subtitle: "Pick your poison"),
-        .init(id: "cat", title: "Categories", emoji: "🧠", subtitle: "Name one — fast"),
+        .init(id: "trivia", title: "Trivia Sprint", emoji: "⏱", subtitle: "60-second rounds"),
+        .init(id: "ttl", title: "Two Truths & a Lie", emoji: "🕵", subtitle: "Sell the story, spot the fake"),
+        .init(id: "cat", title: "Categories", emoji: "🧠", subtitle: "Name one - fast"),
         .init(id: "emoji", title: "Emoji Charades", emoji: "💬", subtitle: "Guess the phrase"),
-        .init(id: "trivia", title: "Trivia Sprint", emoji: "⚡", subtitle: "60-second rounds"),
+        .init(id: "roulette", title: "Roulette", emoji: "🎯", subtitle: "Pick who's next"),
+        .init(id: "guessbac", title: "Guess My BAC", emoji: "🎲", subtitle: "How buzzed am I?"),
     ]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Pick your poison")
-                            .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Theme.ink)
-                        Text("Squad-friendly ways to make the night silly.")
-                            .foregroundStyle(Theme.inkSoft)
-                    }
-                    Spacer()
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.title2)
-                            .foregroundStyle(Theme.accentDeep)
-                            .padding(10)
-                            .background(Circle().fill(Theme.surface.opacity(0.95)))
-                            .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
-                    }
-                    .accessibilityLabel(Text("Settings"))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Pick your poison")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                    Text("Squad-friendly ways to make the night silly.")
+                        .foregroundStyle(Theme.inkSoft)
                 }
 
                 spicinessChip
@@ -96,9 +91,6 @@ struct GamesHub: View {
             .padding(20)
         }
         .background(BeerifyBackground())
-        .sheet(isPresented: $showingSettings) {
-            NavigationStack { SettingsView() }
-        }
     }
 
     private func gameTile(_ g: GameEntry) -> some View {
@@ -118,6 +110,15 @@ struct GamesHub: View {
     @ViewBuilder
     private func destination(for id: String) -> some View {
         switch id {
+        case "headsup": HeadsUpGame()
+        case "psych": PsychBluffGame()
+        case "hottakes": HotTakesGame()
+        case "bombpass": BombPassGame()
+        case "medusa": MedusaGame()
+        case "busdriver": BusDriverGame()
+        case "dareladder": DareLadderGame()
+        case "whosaidit": WhoSaidItGame()
+        case "flipcup": FlipCupGame()
         case "ranked": RankedGame()
         case "wyr": WouldYouRatherGame()
         case "mlt": MostLikelyToGame()
@@ -153,17 +154,24 @@ struct GamesHub: View {
             case 4: return "🌶"; default: return "🔥"
             }
         }()
-        return Button { showingSettings = true } label: {
-            HStack(spacing: 8) {
-                Text(emoji)
-                Text("Spiciness \(level)/5").font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
-                Image(systemName: "slider.horizontal.3").font(.caption).foregroundStyle(Theme.inkSoft)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.accent.opacity(0.15)))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
+        return HStack(spacing: 8) {
+            Text(emoji)
+            Text("Spiciness \(level)/5").font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
+            Slider(
+                value: Binding(
+                    get: { Double(store.data.preferences.spiciness) },
+                    set: { newVal in
+                        store.updatePreferences { $0.spiciness = max(1, min(5, Int(newVal.rounded()))) }
+                    }
+                ),
+                in: 1...5, step: 1
+            )
+            .tint(Theme.accent)
+            .frame(maxWidth: 120)
         }
-        .buttonStyle(BeerifyPressStyle())
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.accent.opacity(0.15)))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
     }
 }
 
@@ -190,7 +198,7 @@ struct LeaderboardView: View {
                 if roomService.state == nil {
                     empty(text: "Join or create a room to start a squad leaderboard.")
                 } else if roomService.scoreboard.isEmpty {
-                    empty(text: "No scores yet — play a scored round.")
+                    empty(text: "No scores yet - play a scored round.")
                 } else {
                     ForEach(scored, id: \.id) { g in
                         section(for: g)
@@ -236,7 +244,7 @@ struct LeaderboardView: View {
                 Spacer()
             }
             if scores.isEmpty {
-                Text("No scores yet — you could be #1.")
+                Text("No scores yet - you could be #1.")
                     .font(.caption).foregroundStyle(Theme.inkSoft)
                     .padding(.leading, 4)
             } else {
@@ -350,7 +358,7 @@ struct KingsCupGame: View {
         "5": ("Guys", "All guys drink."),
         "6": ("Chicks", "All chicks drink."),
         "7": ("Heaven", "Last person to point up drinks."),
-        "8": ("Mate", "Pick a mate — they drink when you drink for the rest of the game."),
+        "8": ("Mate", "Pick a mate - they drink when you drink for the rest of the game."),
         "9": ("Rhyme", "Say a word; go around rhyming. First to fail drinks."),
         "10": ("Categories", "Pick a category. Go around naming items. First to fail drinks."),
         "J": ("Never Have I Ever", "Play a quick round."),
@@ -424,7 +432,7 @@ struct NeverHaveIEverGame: View {
     @State private var havenotCount: Int = 0
 
     private static let deck: [SpicyPrompt] = [
-        // Level 1 — family-safe
+        // Level 1 - family-safe
         .init(text: "…gone viral (even briefly).", level: 1),
         .init(text: "…gotten stuck in an elevator.", level: 1),
         .init(text: "…re-gifted a Christmas present.", level: 1),
@@ -437,7 +445,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…called a teacher 'mum' or 'dad'.", level: 1),
         .init(text: "…met a celebrity in real life.", level: 1),
         .init(text: "…walked into a glass door.", level: 1),
-        // Level 2 — mild party
+        // Level 2 - mild party
         .init(text: "…been sent home from a bar.", level: 2),
         .init(text: "…gone skinny-dipping.", level: 2),
         .init(text: "…crashed a wedding.", level: 2),
@@ -450,7 +458,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…blacked out and had to be told what I did.", level: 2),
         .init(text: "…snuck into a club underage.", level: 2),
         .init(text: "…pretended to be someone else on a night out.", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "…texted an ex at 2am.", level: 3),
         .init(text: "…kissed someone whose name I forgot.", level: 3),
         .init(text: "…lied to get out of a first date.", level: 3),
@@ -465,7 +473,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…kept a Tinder profile up while dating someone.", level: 3),
         .init(text: "…kissed two different people in one night.", level: 3),
         .init(text: "…been dumped by text.", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(text: "…screenshot a nude and shown a friend.", level: 4),
         .init(text: "…been caught lying by a partner.", level: 4),
         .init(text: "…hooked up in a public place.", level: 4),
@@ -478,7 +486,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…had a friends-with-benefits arrangement.", level: 4),
         .init(text: "…been dumped for someone else.", level: 4),
         .init(text: "…googled a hookup mid-hookup (to check something).", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(text: "…hooked up with someone in this room.", level: 5),
         .init(text: "…had a threesome.", level: 5),
         .init(text: "…joined the mile-high club.", level: 5),
@@ -489,7 +497,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…hooked up with someone twice my age.", level: 5),
         .init(text: "…had sex in my parents' house as an adult.", level: 5),
         .init(text: "…recorded a sex tape.", level: 5),
-        .init(text: "…paid for a hookup — or been paid.", level: 5),
+        .init(text: "…paid for a hookup - or been paid.", level: 5),
         .init(text: "…been the reason someone else got cheated on.", level: 5),
         .init(text: "…lied about being on birth control or wearing protection.", level: 5),
         .init(text: "…had sex on the first date this year.", level: 5),
@@ -510,12 +518,29 @@ struct NeverHaveIEverGame: View {
         .init(text: "…swiped on my ex for revenge or curiosity.", level: 5),
         .init(text: "…considered getting back with an ex this week.", level: 5),
         .init(text: "…had sex somewhere I really shouldn't have.", level: 5),
-        .init(text: "…finished in under a minute — and pretended otherwise.", level: 5),
+        .init(text: "…finished in under a minute - and pretended otherwise.", level: 5),
         .init(text: "…hooked up with someone in a friend group without them knowing.", level: 5),
         .init(text: "…said 'I love you' just to seal the deal.", level: 5),
         .init(text: "…been blocked immediately after hooking up.", level: 5),
         .init(text: "…hooked up with a total stranger and never asked their name.", level: 5),
-        // Bonus L1 — family safe
+        // Level 5 bonus - unhinged
+        .init(text: "…deleted an entire conversation before handing my phone to someone.", level: 5),
+        .init(text: "…pretended to be someone else online to get information.", level: 5),
+        .init(text: "…snooped through a partner's phone and found something I wish I hadn't.", level: 5),
+        .init(text: "…done something I'd genuinely go to prison for if anyone found out.", level: 5),
+        .init(text: "…manipulated someone into breaking up with their partner so I could make a move.", level: 5),
+        .init(text: "…thrown up during sex and tried to keep going.", level: 5),
+        .init(text: "…lied to everyone in this room about something major.", level: 5),
+        .init(text: "…had a genuine moment where I questioned my own sanity.", level: 5),
+        .init(text: "…stolen something from a hookup's house.", level: 5),
+        .init(text: "…used someone purely for their money and felt zero guilt.", level: 5),
+        .init(text: "…sabotaged a friend's relationship on purpose.", level: 5),
+        .init(text: "…gone through someone's phone, laptop, and drawers while they were asleep.", level: 5),
+        .init(text: "…kept hooking up with someone I had zero respect for.", level: 5),
+        .init(text: "…let someone take the blame for something I did.", level: 5),
+        .init(text: "…faked an entire personality trait to be more attractive to someone.", level: 5),
+        .init(text: "…been genuinely afraid of what I might do if I got angry enough.", level: 5),
+        // Bonus L1 - family safe
         .init(text: "…ridden a horse.", level: 1),
         .init(text: "…broken a bone before I turned 18.", level: 1),
         .init(text: "…lied about my age to buy something.", level: 1),
@@ -528,7 +553,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…lost my phone at a concert.", level: 1),
         .init(text: "…had food stuck in my teeth all day and no one told me.", level: 1),
         .init(text: "…finished a Netflix series in one sitting.", level: 1),
-        // Bonus L2 — mild
+        // Bonus L2 - mild
         .init(text: "…had to be carried home.", level: 2),
         .init(text: "…been the drunkest at a family event.", level: 2),
         .init(text: "…snuck food out of a wedding.", level: 2),
@@ -541,7 +566,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…gotten a really bad haircut mid-breakup.", level: 2),
         .init(text: "…lost something important on a night out.", level: 2),
         .init(text: "…climbed something I shouldn't have.", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(text: "…faked being sick to skip a date.", level: 3),
         .init(text: "…pretended not to see someone I knew in public.", level: 3),
         .init(text: "…written a message on my phone I never had the guts to send.", level: 3),
@@ -555,11 +580,11 @@ struct NeverHaveIEverGame: View {
         .init(text: "…been on a date and known before dessert it wasn't going anywhere.", level: 3),
         .init(text: "…cried at work.", level: 3),
         .init(text: "…said 'I'm fine' when I definitely wasn't.", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(text: "…flirted my way out of trouble.", level: 4),
         .init(text: "…rebound-dated someone I didn't actually like.", level: 4),
         .init(text: "…blocked someone dramatically then unblocked them.", level: 4),
-        .init(text: "…texted the wrong person something spicy — but salvaged it.", level: 4),
+        .init(text: "…texted the wrong person something spicy - but salvaged it.", level: 4),
         .init(text: "…been the 'other person' unknowingly.", level: 4),
         .init(text: "…broken up with someone entirely because of how they text.", level: 4),
         .init(text: "…had a full first-date arc in one week and then ghosted.", level: 4),
@@ -571,7 +596,7 @@ struct NeverHaveIEverGame: View {
         .init(text: "…been offered a threesome and said yes.", level: 4),
         .init(text: "…been jealous of a friend's love life.", level: 4),
         .init(text: "…lied about a first date being a good one.", level: 4),
-        // Bonus L5 — unfiltered adult
+        // Bonus L5 - unfiltered adult
         .init(text: "…had sex in the shower.", level: 5),
         .init(text: "…had sex outside.", level: 5),
         .init(text: "…had sex somewhere I could get arrested.", level: 5),
@@ -601,7 +626,20 @@ struct NeverHaveIEverGame: View {
         .init(text: "…had a friend's parent flirt with me.", level: 5),
         .init(text: "…been the reason someone else got dumped.", level: 5),
         .init(text: "…seen a partner's browser history and been shocked.", level: 5),
-        .init(text: "…finished during a phone call — with them not knowing.", level: 5),
+        .init(text: "…finished during a phone call - with them not knowing.", level: 5),
+        // Level 5 bonus - darker / more personal
+        .init(text: "…purposely started drama between two friends because I was bored.", level: 5),
+        .init(text: "…been so jealous of someone I actively tried to make their life worse.", level: 5),
+        .init(text: "…pretended to be happy for a friend's success while dying inside.", level: 5),
+        .init(text: "…stayed friends with someone purely to keep tabs on them.", level: 5),
+        .init(text: "…ruined something good on purpose because I didn't think I deserved it.", level: 5),
+        .init(text: "…told someone's secret to someone else within 24 hours of hearing it.", level: 5),
+        .init(text: "…completely fabricated a story to make myself look better in front of this group.", level: 5),
+        .init(text: "…been genuinely disgusted by a close friend's life choice but said nothing.", level: 5),
+        .init(text: "…kept a friendship alive only because they're useful to me.", level: 5),
+        .init(text: "…done something behind a best friend's back that would end the friendship if they knew.", level: 5),
+        .init(text: "…looked through someone's phone while they were asleep next to me.", level: 5),
+        .init(text: "…had an intrusive thought so dark I've never said it out loud.", level: 5),
     ]
 
     var body: some View {
@@ -696,7 +734,7 @@ struct RouletteGame: View {
                 }
 
                 if members.isEmpty {
-                    Text("Join a room to include the squad. Solo spin also works — you against fate.")
+                    Text("Join a room to include the squad. Solo spin also works - you against fate.")
                         .font(.caption).foregroundStyle(Theme.inkSoft).multilineTextAlignment(.center)
                 }
 
@@ -727,7 +765,7 @@ struct HigherLowerGame: View {
 
     enum Phase {
         case setup       // adding players
-        case firstAnswer // very first round — subject rates themselves, no guess yet
+        case firstAnswer // very first round - subject rates themselves, no guess yet
         case guess       // waiting for someone to pick higher or lower
         case answer      // subject entering their private number
         case reveal      // showing outcome, streak update
@@ -756,7 +794,7 @@ struct HigherLowerGame: View {
     @State private var recentQuestions: [String] = []
 
     private static let questions: [SpicyPrompt] = [
-        // Level 2 — mild party
+        // Level 2 - mild party
         .init(text: "how loud they'd be at karaoke", level: 2),
         .init(text: "how likely they are to spill a secret when drunk", level: 2),
         .init(text: "how much they overshare with strangers", level: 2),
@@ -767,7 +805,7 @@ struct HigherLowerGame: View {
         .init(text: "how good they are at keeping secrets", level: 2),
         .init(text: "how likely they'd cry at a Pixar movie", level: 2),
         .init(text: "how likely they are to text 'u up?'", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "how likely they are to text an ex tonight", level: 3),
         .init(text: "how jealous they get in relationships", level: 3),
         .init(text: "how good they are at flirting", level: 3),
@@ -779,7 +817,7 @@ struct HigherLowerGame: View {
         .init(text: "how much they lie on dating apps", level: 3),
         .init(text: "how likely they'd date someone rich but boring", level: 3),
         .init(text: "how quickly they catch feelings", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(text: "how loyal they'd be in an open relationship", level: 4),
         .init(text: "how likely they'd hook up with a coworker", level: 4),
         .init(text: "how good of a kisser they think they are", level: 4),
@@ -790,7 +828,7 @@ struct HigherLowerGame: View {
         .init(text: "how many dating apps they have on their phone right now", level: 4),
         .init(text: "how likely they'd get back with their worst ex", level: 4),
         .init(text: "how much they'd give up for the right partner", level: 4),
-        // Level 5 — unfiltered adult
+        // Level 5 - unfiltered adult
         .init(text: "how kinky they really are behind closed doors", level: 5),
         .init(text: "how loud they are in bed", level: 5),
         .init(text: "how selfish they are in bed", level: 5),
@@ -835,7 +873,7 @@ struct HigherLowerGame: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Higher or Lower")
                 .font(.title3.weight(.bold)).foregroundStyle(Theme.ink)
-            Text("Whoever's up gets a spicy question — they secretly rate themselves 0 to 10. The next player gets a new question. Everyone guesses if their score will be higher or lower than the last person's. Keep the streak.")
+            Text("Whoever's up gets a spicy question - they secretly rate themselves 0 to 10. The next player gets a new question. Everyone guesses if their score will be higher or lower than the last person's. Keep the streak.")
                 .font(.caption).foregroundStyle(Theme.inkSoft).fixedSize(horizontal: false, vertical: true)
 
             HStack {
@@ -939,7 +977,7 @@ struct HigherLowerGame: View {
                 Text(currentSubject).font(.title3.weight(.heavy)).foregroundStyle(Theme.ink)
                 Spacer()
             }
-            Text("On a scale of 0–10 —")
+            Text("On a scale of 0–10 -")
                 .font(.caption).foregroundStyle(Theme.inkSoft)
             Text(currentQuestion)
                 .font(.title3.weight(.bold)).foregroundStyle(Theme.ink)
@@ -1161,7 +1199,7 @@ struct TruthOrDareGame: View {
     @State private var recentDares: [String] = []
 
     private static let truths: [SpicyPrompt] = [
-        // Level 1 — family-safe
+        // Level 1 - family-safe
         .init(text: "What's the most embarrassing song on your playlist?", level: 1),
         .init(text: "Weirdest place you've fallen asleep?", level: 1),
         .init(text: "What's a secret talent no one here knows about?", level: 1),
@@ -1170,7 +1208,7 @@ struct TruthOrDareGame: View {
         .init(text: "What's a childhood dream you've secretly kept?", level: 1),
         .init(text: "What's the most embarrassing thing your parents caught you doing?", level: 1),
         .init(text: "What's your go-to lie when you're running late?", level: 1),
-        // Level 2 — mild
+        // Level 2 - mild
         .init(text: "Biggest lie you've told to get out of plans?", level: 2),
         .init(text: "Last text you regret sending?", level: 2),
         .init(text: "Who in this room would you swap lives with for a day?", level: 2),
@@ -1178,9 +1216,9 @@ struct TruthOrDareGame: View {
         .init(text: "What's a compliment you've never told anyone in this room?", level: 2),
         .init(text: "What's the most you've spent on something dumb this year?", level: 2),
         .init(text: "What's a hill you'd die on that would upset everyone here?", level: 2),
-        .init(text: "Who in this room do you find most annoying — and why?", level: 2),
+        .init(text: "Who in this room do you find most annoying - and why?", level: 2),
         .init(text: "What's the last thing you cried about?", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "Who was the last person you stalked online?", level: 3),
         .init(text: "Who in this room have you had a crush on?", level: 3),
         .init(text: "What's the most you've spent trying to impress a date?", level: 3),
@@ -1190,8 +1228,8 @@ struct TruthOrDareGame: View {
         .init(text: "Have you ever lied on a resume?", level: 3),
         .init(text: "What's the pettiest revenge you've taken?", level: 3),
         .init(text: "What's the biggest lie you've told your parents?", level: 3),
-        .init(text: "Who was the last person to make you cry — and why?", level: 3),
-        // Level 4 — spicy
+        .init(text: "Who was the last person to make you cry - and why?", level: 3),
+        // Level 4 - spicy
         .init(text: "Which of your exes would you unblock right now for $500?", level: 4),
         .init(text: "What's the worst thing you've done to get out of a relationship?", level: 4),
         .init(text: "Have you ever lied about how it ended? Say more.", level: 4),
@@ -1199,15 +1237,15 @@ struct TruthOrDareGame: View {
         .init(text: "What's the wildest place you've kissed someone?", level: 4),
         .init(text: "Have you ever had a crush on someone in a relationship?", level: 4),
         .init(text: "What's the most embarrassing photo in your camera roll right now?", level: 4),
-        .init(text: "Who was your worst kiss — and what made it so bad?", level: 4),
+        .init(text: "Who was your worst kiss - and what made it so bad?", level: 4),
         .init(text: "Have you ever pretended to be more experienced than you are?", level: 4),
         .init(text: "What's the longest you've stayed with someone you knew wasn't right?", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(text: "What's your actual body count? Say the number.", level: 5),
         .init(text: "Who in this room would you sleep with if you had one free pass?", level: 5),
         .init(text: "What's the wildest thing you've done in bed?", level: 5),
         .init(text: "Have you ever hooked up with someone in this room?", level: 5),
-        .init(text: "How many times have you faked it — total?", level: 5),
+        .init(text: "How many times have you faked it - total?", level: 5),
         .init(text: "What's the shortest time between meeting someone and sleeping with them?", level: 5),
         .init(text: "Who's the last person you sent a nude to?", level: 5),
         .init(text: "What's a kink or fantasy you've never admitted out loud?", level: 5),
@@ -1216,7 +1254,7 @@ struct TruthOrDareGame: View {
         .init(text: "Rate everyone here for sexual chemistry.", level: 5),
         .init(text: "What's the sluttiest thing you've done to get someone's attention?", level: 5),
         .init(text: "Have you ever hooked up with a friend's ex or partner?", level: 5),
-        .init(text: "What's the longest you've gone without sex — and why?", level: 5),
+        .init(text: "What's the longest you've gone without sex - and why?", level: 5),
         .init(text: "Have you ever cheated? Details.", level: 5),
         .init(text: "What's the wildest place you've had sex?", level: 5),
         .init(text: "What's your number of one-night stands in the last year?", level: 5),
@@ -1226,9 +1264,25 @@ struct TruthOrDareGame: View {
         .init(text: "What's the most reckless thing you've done because you fancied someone?", level: 5),
         .init(text: "Have you ever hooked up with someone twice your age?", level: 5),
         .init(text: "Have you ever recorded yourself during sex?", level: 5),
-        .init(text: "What's the worst thing about your last sexual partner — that they don't know?", level: 5),
+        .init(text: "What's the worst thing about your last sexual partner - that they don't know?", level: 5),
         .init(text: "Have you ever hooked up in a public bathroom?", level: 5),
-        // Bonus L1 — family-safe
+        // Level 5 bonus - beyond hookups
+        .init(text: "What's the worst thing you've done that nobody in this room knows about?", level: 5),
+        .init(text: "Who in this room do you think is genuinely a bad person deep down? Why?", level: 5),
+        .init(text: "What's a friendship in this group you think is fake? Explain.", level: 5),
+        .init(text: "If you had to rank everyone here by who you'd cut from your life first, go.", level: 5),
+        .init(text: "What's the most manipulative thing you've ever done - and did it work?", level: 5),
+        .init(text: "What's a secret you know about someone in this room that they don't know you know?", level: 5),
+        .init(text: "If this group had a group chat without you, what do you think they'd say?", level: 5),
+        .init(text: "What's the cruelest thing you've ever said to someone's face?", level: 5),
+        .init(text: "Have you ever genuinely wished harm on a friend? Who and why?", level: 5),
+        .init(text: "What's the biggest lie you're currently living?", level: 5),
+        .init(text: "If you could erase one person from your life with no consequences, who and why?", level: 5),
+        .init(text: "What have you done drunk that you'd never admit sober? Say it now.", level: 5),
+        .init(text: "Who here are you most jealous of and what specifically makes you jealous?", level: 5),
+        .init(text: "What's the worst thing you've said about someone in this room behind their back?", level: 5),
+        .init(text: "Confess something right now that could genuinely change how this group sees you.", level: 5),
+        // Bonus L1 - family-safe
         .init(text: "What was your favorite childhood snack?", level: 1),
         .init(text: "What's your comfort movie?", level: 1),
         .init(text: "What's your most irrational fear?", level: 1),
@@ -1238,7 +1292,7 @@ struct TruthOrDareGame: View {
         .init(text: "What's a hobby you've picked up recently?", level: 1),
         .init(text: "If you could live anywhere, where?", level: 1),
         .init(text: "What was your favorite pet?", level: 1),
-        // Bonus L2 — mild
+        // Bonus L2 - mild
         .init(text: "What's the pettiest text you've sent?", level: 2),
         .init(text: "What's a lie you tell yourself often?", level: 2),
         .init(text: "What's your worst habit you refuse to fix?", level: 2),
@@ -1247,7 +1301,7 @@ struct TruthOrDareGame: View {
         .init(text: "What's the last thing you ate in bed?", level: 2),
         .init(text: "Who was your worst boss and what did they do?", level: 2),
         .init(text: "What's a purchase you regret this month?", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(text: "What's the worst gift you've received and pretended to love?", level: 3),
         .init(text: "What's a rumor you've spread that turned out false?", level: 3),
         .init(text: "What's your worst date story?", level: 3),
@@ -1257,7 +1311,7 @@ struct TruthOrDareGame: View {
         .init(text: "What's the worst first impression you made?", level: 3),
         .init(text: "Who's the pettiest person in this room, honestly?", level: 3),
         .init(text: "What's a compliment you've never been able to accept?", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(text: "What's a red flag you've ignored and stayed anyway?", level: 4),
         .init(text: "Have you ever ended a friendship over a partner?", level: 4),
         .init(text: "What's the shortest relationship you had that meant the most?", level: 4),
@@ -1266,7 +1320,7 @@ struct TruthOrDareGame: View {
         .init(text: "What's the last thing you did that would embarrass your mum?", level: 4),
         .init(text: "Have you ever seen someone else's phone screen and immediately felt weird?", level: 4),
         .init(text: "What's a story you've told a partner you slightly exaggerated?", level: 4),
-        // Bonus L5 — unfiltered
+        // Bonus L5 - unfiltered
         .init(text: "What's the shortest hookup you've had, in minutes?", level: 5),
         .init(text: "What's a hookup you're glad nobody knows about?", level: 5),
         .init(text: "Have you ever been paid for a sexual favor?", level: 5),
@@ -1287,16 +1341,27 @@ struct TruthOrDareGame: View {
         .init(text: "Have you ever kept a hookup's underwear?", level: 5),
         .init(text: "Have you ever propositioned a stranger?", level: 5),
         .init(text: "What's the wildest place you've had a hookup end?", level: 5),
+        // Bonus L5 - friendship destroyers
+        .init(text: "What do you genuinely dislike about the person on your left? No sugarcoating.", level: 5),
+        .init(text: "Who here do you think peaked in school and hasn't grown since?", level: 5),
+        .init(text: "What's something you pretend to find funny in this group but actually cringe at?", level: 5),
+        .init(text: "If you could swap lives with someone here, who - and what's the first thing you'd fix?", level: 5),
+        .init(text: "Who in this room gives off 'I peaked at 17' energy?", level: 5),
+        .init(text: "What's the most pathetic thing you've done for validation this year?", level: 5),
+        .init(text: "If everyone here was honest about who they actually like least, who'd get the most votes?", level: 5),
+        .init(text: "Tell the room the thing you're most ashamed of - not a hookup story, something real.", level: 5),
+        .init(text: "What's a time you were genuinely the villain and knew it?", level: 5),
+        .init(text: "Who here do you think will look back on their 20s with the most regret?", level: 5),
     ]
     private static let dares: [SpicyPrompt] = [
-        // Level 1 — family-safe
+        // Level 1 - family-safe
         .init(text: "Do your best impression of someone in the room.", level: 1),
         .init(text: "Talk in an accent for the next 5 minutes.", level: 1),
         .init(text: "Compliment everyone in the room. Genuinely.", level: 1),
         .init(text: "Sing the chorus of the last song you listened to.", level: 1),
         .init(text: "Do the worm across the room.", level: 1),
         .init(text: "Draw a self-portrait in 15 seconds. Show it.", level: 1),
-        // Level 2 — mild
+        // Level 2 - mild
         .init(text: "Do 10 squats without breaking eye contact.", level: 2),
         .init(text: "Swap one item of clothing with someone here.", level: 2),
         .init(text: "Speak only in questions until your next turn.", level: 2),
@@ -1304,7 +1369,7 @@ struct TruthOrDareGame: View {
         .init(text: "Text your mum in the moodiest possible language.", level: 2),
         .init(text: "Do your best flirty compliment to the person on your right.", level: 2),
         .init(text: "Speak in a British accent until the next round.", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "Let someone here rewrite your bio.", level: 3),
         .init(text: "Read out your last three sent messages, in order.", level: 3),
         .init(text: "Show the last five photos in your camera roll.", level: 3),
@@ -1313,43 +1378,43 @@ struct TruthOrDareGame: View {
         .init(text: "Let the group vote on which of your exes to unfollow.", level: 3),
         .init(text: "Show the last DM you sent to anyone.", level: 3),
         .init(text: "Give a heartfelt confession to the person on your left. Made up or real.", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(text: "Call the last number you dialed and sing 'Happy Birthday'.", level: 4),
-        .init(text: "Text your crush 'you awake?' — right now, no context.", level: 4),
+        .init(text: "Text your crush 'you awake?' - right now, no context.", level: 4),
         .init(text: "Let the group send one message from your phone.", level: 4),
         .init(text: "Do your best sultry runway walk to the door and back.", level: 4),
         .init(text: "Delete the last person you texted from your contacts (you can re-add later).", level: 4),
-        .init(text: "Kiss the person on your left — cheek or better.", level: 4),
+        .init(text: "Kiss the person on your left - cheek or better.", level: 4),
         .init(text: "Send a flirty voice memo to the last person you slept with.", level: 4),
         .init(text: "Whisper something flirty in the ear of the person on your right.", level: 4),
         .init(text: "Take a shot off someone's collarbone.", level: 4),
         .init(text: "Let the group swipe on Tinder/Hinge for you for 60 seconds.", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(text: "Read out the most recent DM from your crush.", level: 5),
         .init(text: "Let the group post any story they want to your profile.", level: 5),
         .init(text: "Show the group the last three texts you sent to your last hookup.", level: 5),
-        .init(text: "Send 'I've been thinking about the other night 😏' to your most recent hookup — no context.", level: 5),
-        .init(text: "Let the group scroll your dating app for 30 seconds — no vetoes.", level: 5),
+        .init(text: "Send 'I've been thinking about the other night 😏' to your most recent hookup - no context.", level: 5),
+        .init(text: "Let the group scroll your dating app for 30 seconds - no vetoes.", level: 5),
         .init(text: "Give a 30-second lap dance to the person on your right.", level: 5),
         .init(text: "Send a voice memo saying 'I miss you' to your ex, right now.", level: 5),
         .init(text: "Take a body shot off the person to your left.", level: 5),
-        .init(text: "Kiss the person here you find most attractive — anywhere but the mouth.", level: 5),
+        .init(text: "Kiss the person here you find most attractive - anywhere but the mouth.", level: 5),
         .init(text: "Reveal the most explicit photo in your camera roll.", level: 5),
         .init(text: "Let the group compose a horny text and send it from your phone to anyone.", level: 5),
         .init(text: "Sit on the lap of the person to your right until your next turn.", level: 5),
-        .init(text: "Show the last person you slept with in your phone — name and photo.", level: 5),
+        .init(text: "Show the last person you slept with in your phone - name and photo.", level: 5),
         .init(text: "Text your crush 'come over' and screenshot the reply.", level: 5),
         .init(text: "Let the group pick your dating app profile picture for a week.", level: 5),
         .init(text: "Whisper the dirtiest thought you've had this week into the ear of the person on your left.", level: 5),
         .init(text: "Take off one piece of clothing of the group's choice.", level: 5),
-        .init(text: "Rate the last person you slept with — out of 10, out loud.", level: 5),
+        .init(text: "Rate the last person you slept with - out of 10, out loud.", level: 5),
         .init(text: "Send a nude-style thirst trap (fully clothed) to your last hookup.", level: 5),
-        .init(text: "Confess something intimate to the room — nothing off limits.", level: 5),
+        .init(text: "Confess something intimate to the room - nothing off limits.", level: 5),
         .init(text: "Kiss the person of your choice in this room. On the mouth. For 5 seconds.", level: 5),
         .init(text: "Show the group your steamiest message ever sent.", level: 5),
         .init(text: "DM your last hookup and ask them what their favourite thing was that night.", level: 5),
-        .init(text: "Reenact your last hookup using someone here as a stand-in — clothed only.", level: 5),
-        // Bonus L1 — family-safe
+        .init(text: "Reenact your last hookup using someone here as a stand-in - clothed only.", level: 5),
+        // Bonus L1 - family-safe
         .init(text: "Attempt to juggle three random objects.", level: 1),
         .init(text: "Say a tongue twister three times fast.", level: 1),
         .init(text: "Try to lick your elbow. Everyone watches.", level: 1),
@@ -1358,7 +1423,7 @@ struct TruthOrDareGame: View {
         .init(text: "Rap the alphabet in under 15 seconds.", level: 1),
         .init(text: "Sing your last text in an opera voice.", level: 1),
         .init(text: "Do a handstand attempt against a wall.", level: 1),
-        // Bonus L2 — mild
+        // Bonus L2 - mild
         .init(text: "Put on the ugliest snap filter and take a selfie for the group.", level: 2),
         .init(text: "Do 15 push-ups. Now.", level: 2),
         .init(text: "Text your last five contacts 'you free tonight?' in one round.", level: 2),
@@ -1366,7 +1431,7 @@ struct TruthOrDareGame: View {
         .init(text: "Call a friend and confess a fake but wholesome secret.", level: 2),
         .init(text: "Speak only in whispers for the next two rounds.", level: 2),
         .init(text: "Change your profile picture to whatever the group picks (5 min).", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(text: "Show the last person you searched for on Instagram.", level: 3),
         .init(text: "Read out your last five Google searches.", level: 3),
         .init(text: "Show the group your Camera Roll from exactly one year ago today.", level: 3),
@@ -1375,7 +1440,7 @@ struct TruthOrDareGame: View {
         .init(text: "Post an unflattering selfie for at least 30 seconds.", level: 3),
         .init(text: "Read out the last three notes in your Notes app.", level: 3),
         .init(text: "Show the group the last three DMs you sent that were more than 30 words.", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(text: "Send a heart emoji to your last three exes in a row.", level: 4),
         .init(text: "Let the group vote on which of your exes to text 'I still think about you' to.", level: 4),
         .init(text: "Take a body shot off someone in the room's forearm.", level: 4),
@@ -1383,28 +1448,41 @@ struct TruthOrDareGame: View {
         .init(text: "Give someone in this room a hickey (of your choice).", level: 4),
         .init(text: "Rate the attractiveness of your last three dates out loud.", level: 4),
         .init(text: "Do a striptease down to whatever you're comfortable with, 15 seconds.", level: 4),
-        .init(text: "Kiss someone here for 3 seconds — anywhere but the mouth.", level: 4),
-        // Bonus L5 — unfiltered
-        .init(text: "Text your last hookup 'be honest — how was it, out of 10?'", level: 5),
+        .init(text: "Kiss someone here for 3 seconds - anywhere but the mouth.", level: 4),
+        // Bonus L5 - unfiltered
+        .init(text: "Text your last hookup 'be honest - how was it, out of 10?'", level: 5),
         .init(text: "Show the group the spiciest photo of yourself you're willing to share.", level: 5),
         .init(text: "Let the group post a thirsty comment on your latest photo.", level: 5),
         .init(text: "Read the last DM your ex sent you out loud.", level: 5),
-        .init(text: "Give the person on your left a lap dance — 20 seconds, fully clothed.", level: 5),
-        .init(text: "Let the group choose any question to ask your last hookup — and send it live.", level: 5),
+        .init(text: "Give the person on your left a lap dance - 20 seconds, fully clothed.", level: 5),
+        .init(text: "Let the group choose any question to ask your last hookup - and send it live.", level: 5),
         .init(text: "Call your ex and hang up as soon as they answer.", level: 5),
         .init(text: "Send a voice memo to your crush saying only 'come over'.", level: 5),
         .init(text: "Screenshot your dating apps' recent chats and show the group first names only.", level: 5),
-        .init(text: "Take off one accessory — glasses, jewelry, belt — chosen by the person on your right.", level: 5),
+        .init(text: "Take off one accessory - glasses, jewelry, belt - chosen by the person on your right.", level: 5),
         .init(text: "Let the group compose a horny paragraph and send it to any name in your phone.", level: 5),
-        .init(text: "Show the last screenshot on your phone — no explaining.", level: 5),
+        .init(text: "Show the last screenshot on your phone - no explaining.", level: 5),
         .init(text: "Whisper a very specific detail from your last hookup into the ear of the person on your left.", level: 5),
         .init(text: "Text 'wanna go halfsies on a hotel' to the last person you slept with.", level: 5),
         .init(text: "Do your dirtiest dance move for 10 seconds. Solo.", level: 5),
         .init(text: "Let the group pick a hookup they think will reply to a 'u up?' from you tonight.", level: 5),
-        .init(text: "Sit backwards on a chair like they do in bad movies — for the next 3 rounds.", level: 5),
-        .init(text: "Text your ex 'I had a dream about you' — full stop.", level: 5),
+        .init(text: "Sit backwards on a chair like they do in bad movies - for the next 3 rounds.", level: 5),
+        .init(text: "Text your ex 'I had a dream about you' - full stop.", level: 5),
         .init(text: "Show the group your saved reels/TikToks.", level: 5),
-        .init(text: "Reenact your first kiss with the person on your right — mimed, cheek-to-cheek.", level: 5),
+        .init(text: "Reenact your first kiss with the person on your right - mimed, cheek-to-cheek.", level: 5),
+        // Level 5 bonus - chaotic energy
+        .init(text: "Unlock your phone and hand it to the person you trust least in this room for 60 seconds.", level: 5),
+        .init(text: "Let the group go through your 'Recently Deleted' photos for 30 seconds.", level: 5),
+        .init(text: "Screen share your Notes app. All of it. 20 seconds.", level: 5),
+        .init(text: "Open your calculator history. Explain each one.", level: 5),
+        .init(text: "Show the group the contact name you have saved for your ex.", level: 5),
+        .init(text: "Let someone in the room text literally anything from your phone to your mum.", level: 5),
+        .init(text: "Read your screen time report out loud - every app, every hour.", level: 5),
+        .init(text: "Let the group pick someone in your contacts. Call them and say 'I need to tell you something'. Then hang up.", level: 5),
+        .init(text: "Show the group your Spotify Wrapped top artists. No skipping.", level: 5),
+        .init(text: "Go live on Instagram for 30 seconds doing whatever the group decides.", level: 5),
+        .init(text: "Text your mum 'I need to talk to you about something important' - then don't reply for 10 minutes.", level: 5),
+        .init(text: "Open your Maps timeline and show the group everywhere you've been this week.", level: 5),
     ]
 
     var body: some View {
@@ -1452,7 +1530,7 @@ struct CategoriesGame: View {
     @Environment(AppStore.self) private var store
 
     private static let categories: [SpicyPrompt] = [
-        // Level 1-3 — general
+        // Level 1-3 - general
         .init(text: "Cocktails", level: 1),
         .init(text: "80s bands", level: 1),
         .init(text: "Beers", level: 1),
@@ -1504,7 +1582,7 @@ struct CategoriesGame: View {
         .init(text: "Green flags in a partner", level: 3),
         .init(text: "Things you'd lie about on a dating app", level: 3),
         .init(text: "Reasons to ghost someone", level: 3),
-        // Level 4-5 — adult
+        // Level 4-5 - adult
         .init(text: "Types of kisses", level: 4),
         .init(text: "Pickup lines", level: 4),
         .init(text: "Places you shouldn't hook up", level: 4),
@@ -1568,7 +1646,7 @@ struct CategoriesGame: View {
         .init(text: "Types of pizza toppings", level: 1),
         .init(text: "Sandwich fillings", level: 1),
         .init(text: "Ways to cook eggs", level: 1),
-        // Bonus L2 — mild
+        // Bonus L2 - mild
         .init(text: "Things you'd rescue in a house fire", level: 2),
         .init(text: "Foods you can eat with your hands", level: 2),
         .init(text: "Songs at every wedding", level: 2),
@@ -1583,7 +1661,7 @@ struct CategoriesGame: View {
         .init(text: "Things you Google at 3am", level: 2),
         .init(text: "Signs you're getting old", level: 2),
         .init(text: "Ways to embarrass yourself in public", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(text: "Reasons to leave a date early", level: 3),
         .init(text: "Bad first date locations", level: 3),
         .init(text: "Things you don't say to your mother-in-law", level: 3),
@@ -1593,7 +1671,7 @@ struct CategoriesGame: View {
         .init(text: "Songs that describe your love life", level: 3),
         .init(text: "Excuses for missing a friend's birthday", level: 3),
         .init(text: "Reasons you were dumped", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(text: "Places you've made out you shouldn't have", level: 4),
         .init(text: "Reasons you slept over 'accidentally'", level: 4),
         .init(text: "Things your parents don't know about you", level: 4),
@@ -1601,7 +1679,7 @@ struct CategoriesGame: View {
         .init(text: "Signs someone's a bad kisser", level: 4),
         .init(text: "Reasons you'd cancel a hookup last minute", level: 4),
         .init(text: "Body language that's a green flag", level: 4),
-        // Bonus L5 — unfiltered
+        // Bonus L5 - unfiltered
         .init(text: "Things you've said in bed you regret", level: 5),
         .init(text: "Kinks that shouldn't exist but do", level: 5),
         .init(text: "Sex noises that need to be banned", level: 5),
@@ -2148,7 +2226,7 @@ struct TriviaGame: View {
                 await MainActor.run { if timeLeft > 0 { timeLeft -= 1 } }
             }
             if selected == nil {
-                await MainActor.run { selected = -1 }  // out of time — nothing selected
+                await MainActor.run { selected = -1 }  // out of time - nothing selected
             }
         }
     }

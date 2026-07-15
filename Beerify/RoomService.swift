@@ -29,6 +29,8 @@ final class RoomService: NSObject {
     private(set) var scoreboard: [String: GameScoreEntry] = [:]
     /// The currently active Ranked round, mirrored across all peers.
     private(set) var rankedRound: RankedRoundState? = nil
+    /// Shared pub golf game state, synced across all peers.
+    private(set) var pubGolfGame: PubGolfGameState? = nil
 
     /// Exposed so views can compare against `rankedRound.pickerId`.
     var currentMemberId: String? { memberId }
@@ -61,7 +63,7 @@ final class RoomService: NSObject {
     }
 
     /// Bring the service up under `code` with the given local `snapshot`.
-    /// Both hosts and joiners call this — the mesh has no distinction after
+    /// Both hosts and joiners call this - the mesh has no distinction after
     /// the initial handshake.
     @MainActor
     func activate(code rawCode: String, memberId: String, snapshot: SquadMember) {
@@ -190,6 +192,50 @@ final class RoomService: NSObject {
         broadcast(.rankedCancel(roundId: round.roundId))
     }
 
+    // MARK: - Pub Golf
+
+    /// Start a pub golf game and broadcast the course to all peers.
+    @MainActor
+    func pubGolfStart(holes: [SharedPubGolfHole]) {
+        guard let memberId else { return }
+        let name = members[memberId]?.name ?? "You"
+        let gameId = IDGen.new()
+        let progress = PubGolfMemberProgress(
+            memberId: memberId, memberName: name,
+            scores: [:], currentHoleIndex: 0
+        )
+        let game = PubGolfGameState(
+            gameId: gameId, holes: holes,
+            progress: [memberId: progress]
+        )
+        pubGolfGame = game
+        broadcast(.pubGolfStart(game))
+    }
+
+    /// Update local member's score for a hole and broadcast.
+    @MainActor
+    func pubGolfUpdateScore(holeId: String, strokes: Int, currentHoleIndex: Int) {
+        guard let memberId, var game = pubGolfGame else { return }
+        let name = members[memberId]?.name ?? "You"
+        var prog = game.progress[memberId] ?? PubGolfMemberProgress(
+            memberId: memberId, memberName: name,
+            scores: [:], currentHoleIndex: 0
+        )
+        prog.scores[holeId] = strokes
+        prog.currentHoleIndex = currentHoleIndex
+        game.progress[memberId] = prog
+        pubGolfGame = game
+        broadcast(.pubGolfProgress(prog))
+    }
+
+    /// End the current pub golf game.
+    @MainActor
+    func pubGolfEnd() {
+        guard let game = pubGolfGame else { return }
+        pubGolfGame = nil
+        broadcast(.pubGolfEnd(gameId: game.gameId))
+    }
+
     // MARK: - Scores
 
     /// Report a game score. Keeps only your best per game and broadcasts it
@@ -287,7 +333,7 @@ final class RoomService: NSObject {
             let data = try Self.encoder.encode(msg)
             try session.send(data, toPeers: peers, with: .reliable)
         } catch {
-            // Non-fatal — future updates will retry.
+            // Non-fatal - future updates will retry.
         }
     }
 
@@ -384,6 +430,39 @@ final class RoomService: NSObject {
             if rankedRound?.roundId == roundId { rankedRound = nil }
         case .rankedStateSync(let round):
             rankedRound = round
+        case .pubGolfStart(let game):
+            pubGolfGame = game
+            // Join the game automatically
+            if let memberId, game.progress[memberId] == nil {
+                var g = game
+                let name = members[memberId]?.name ?? "You"
+                g.progress[memberId] = PubGolfMemberProgress(
+                    memberId: memberId, memberName: name,
+                    scores: [:], currentHoleIndex: 0
+                )
+                pubGolfGame = g
+            }
+        case .pubGolfProgress(let prog):
+            if var game = pubGolfGame {
+                game.progress[prog.memberId] = prog
+                pubGolfGame = game
+            }
+        case .pubGolfEnd(let gameId):
+            if pubGolfGame?.gameId == gameId { pubGolfGame = nil }
+        case .pubGolfSync(let game):
+            if let game {
+                pubGolfGame = game
+                // Auto-join
+                if let memberId, game.progress[memberId] == nil {
+                    var g = game
+                    let name = members[memberId]?.name ?? "You"
+                    g.progress[memberId] = PubGolfMemberProgress(
+                        memberId: memberId, memberName: name,
+                        scores: [:], currentHoleIndex: 0
+                    )
+                    pubGolfGame = g
+                }
+            }
         }
         publishState()
     }
@@ -396,6 +475,8 @@ final class RoomService: NSObject {
         if !scores.isEmpty { send(.scoreSync(scores), to: [peer]) }
         // Bring newly-connected peers up to date on any active Ranked round.
         if rankedRound != nil { send(.rankedStateSync(rankedRound), to: [peer]) }
+        // Bring newly-connected peers up to date on any active Pub Golf game.
+        if pubGolfGame != nil { send(.pubGolfSync(pubGolfGame), to: [peer]) }
     }
 
     // MARK: - Codec
@@ -431,6 +512,11 @@ enum RoomMessage: Codable {
     case rankedCancel(roundId: String)
     /// Full round dump used to bring newly-joined peers up to date.
     case rankedStateSync(RankedRoundState?)
+    // Pub Golf messages
+    case pubGolfStart(PubGolfGameState)
+    case pubGolfProgress(PubGolfMemberProgress)
+    case pubGolfEnd(gameId: String)
+    case pubGolfSync(PubGolfGameState?)
 }
 
 // MARK: - MCSessionDelegate
@@ -470,7 +556,7 @@ extension RoomService: MCNearbyServiceAdvertiserDelegate {
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         Task { @MainActor [weak self] in
-            self?.errorMessage = "Local network access is off — enable it in Settings to use rooms."
+            self?.errorMessage = "Local network access is off - enable it in Settings to use rooms."
         }
     }
 }

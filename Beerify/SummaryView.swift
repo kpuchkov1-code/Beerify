@@ -70,7 +70,7 @@ struct SummaryView: View {
                     HStack {
                         Text(hangover.emoji).font(.system(size: 36))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Hangover forecast — \(hangover.label)")
+                            Text("Hangover forecast - \(hangover.label)")
                                 .font(.headline).foregroundStyle(Theme.ink)
                             Text(hangover.body).font(.caption).foregroundStyle(Theme.inkSoft)
                                 .fixedSize(horizontal: false, vertical: true)

@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        // Silent pushes for CloudKit subscriptions — no user prompt needed.
+        // Silent pushes for CloudKit subscriptions - no user prompt needed.
         UIApplication.shared.registerForRemoteNotifications()
         return true
     }
@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // Non-fatal — remote sync just won't be instant.
+        // Non-fatal - remote sync just won't be instant.
     }
 }
 #endif

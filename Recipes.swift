@@ -9,6 +9,20 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
+// MARK: - Seeded RNG (for deterministic bingo cards in rooms)
+
+private struct SeededRNG: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed == 0 ? 1 : seed }
+    mutating func next() -> UInt64 {
+        // xorshift64
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return state
+    }
+}
+
 // MARK: - Location Manager
 
 @Observable
@@ -121,9 +135,12 @@ enum PubTab: String, CaseIterable {
     case map = "Map"
     case crawl = "Pub Crawl"
     case golf = "Pub Golf"
+    case bingo = "Bingo"
 }
 
 struct PubMapView: View {
+    @Environment(RoomService.self) private var roomService
+    @Environment(AppStore.self) private var store
     @State private var locationManager = PubLocationManager()
     @State private var pubs: [Pub] = []
     @State private var selectedTab: PubTab = .map
@@ -132,6 +149,13 @@ struct PubMapView: View {
     @State private var isSearching = false
     @State private var walkingRoutes: [RouteLeg] = []
     @State private var isCalculatingRoute = false
+    @State private var golfGameActive = false
+    // Bingo state
+    @State private var bingoCard: [BingoSquare] = []
+    @State private var bingoSeed: Int = 0
+    @State private var showBingoCelebration: Bool = false
+    @State private var bingoLines: Set<Int> = []  // indices of completed lines (0-4 rows, 5-9 cols, 10-11 diags)
+    @State private var fullHouse: Bool = false
     private static let londonCenter = CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278)
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 51.5074, longitude: -0.1278),
@@ -141,6 +165,7 @@ struct PubMapView: View {
     @State private var hasInitialLocation = false
 
     var body: some View {
+        ZStack {
         VStack(spacing: 0) {
             Text("Pubs")
                 .font(.system(size: 28, weight: .heavy, design: .rounded))
@@ -160,6 +185,8 @@ struct PubMapView: View {
                 pubCrawlSection
             case .golf:
                 pubGolfSection
+            case .bingo:
+                pubBingoSection
             }
         }
         .background(BeerifyBackground())
@@ -176,11 +203,18 @@ struct PubMapView: View {
             hasInitialLocation = true
             await searchAllVenues()
         }
+
+        // Full-screen bingo celebration
+        if showBingoCelebration {
+            bingoCelebrationOverlay
+        }
+        } // ZStack
     }
 
     // MARK: Tab Bar
 
     private var tabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 8) {
             ForEach(PubTab.allCases, id: \.self) { tab in
                 Button {
@@ -199,6 +233,7 @@ struct PubMapView: View {
                 }
             }
             Spacer()
+        }
         }
     }
 
@@ -272,6 +307,19 @@ struct PubMapView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(.horizontal, 20)
 
+            if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+                HStack(spacing: 8) {
+                    Image(systemName: "location.slash.fill").foregroundStyle(Theme.warning)
+                    Text("Location access is off - showing a default area. Enable location in Settings to find pubs near you.")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.warning.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.warning.opacity(0.3), lineWidth: 1))
+                .padding(.horizontal, 20)
+            }
+
             // Legend
             HStack(spacing: 16) {
                 ForEach(VenueType.allCases, id: \.self) { type in
@@ -333,82 +381,25 @@ struct PubMapView: View {
 
             // Scrollable list
             ScrollView {
-                LazyVStack(spacing: 6) {
-                    // Route stops
+                VStack(spacing: 6) {
+                    // Route stops - drag to reorder
                     if !crawlRoute.isEmpty {
-                        ForEach(Array(crawlRoute.enumerated()), id: \.element.id) { i, pub in
-                            HStack(spacing: 10) {
-                                ZStack {
-                                    Circle().fill(Theme.accentDeep).frame(width: 26, height: 26)
-                                    Text("\(i + 1)").font(.caption2.weight(.heavy)).foregroundStyle(.white)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(pub.name).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                                    if i < walkingRoutes.count - 1 {
-                                        Text(String(format: "%.0f min walk to next", walkingRoutes[i].expectedTravelTime / 60))
-                                            .font(.caption2).foregroundStyle(Theme.inkMuted)
-                                    } else if i == crawlRoute.count - 1 && walkingRoutes.count == crawlRoute.count {
-                                        Text(String(format: "%.0f min back to start", walkingRoutes.last!.expectedTravelTime / 60))
-                                            .font(.caption2).foregroundStyle(Theme.inkMuted)
-                                    }
-                                }
-                                Spacer()
-                                if i > 0 {
-                                    Button {
-                                        crawlRoute.swapAt(i, i - 1)
-                                        Task { await recalculateWalkingRoutes(for: crawlRoute) }
-                                    } label: {
-                                        Image(systemName: "chevron.up")
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(Theme.inkMuted)
-                                            .frame(width: 28, height: 28)
-                                            .background(Circle().fill(Theme.surface))
-                                    }
-                                }
-                                if i < crawlRoute.count - 1 {
-                                    Button {
-                                        crawlRoute.swapAt(i, i + 1)
-                                        Task { await recalculateWalkingRoutes(for: crawlRoute) }
-                                    } label: {
-                                        Image(systemName: "chevron.down")
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(Theme.inkMuted)
-                                            .frame(width: 28, height: 28)
-                                            .background(Circle().fill(Theme.surface))
-                                    }
-                                }
-                                Button {
-                                    crawlRoute.removeAll { $0.id == pub.id }
-                                    optimiseRoute()
-                                    Task { await recalculateWalkingRoutes(for: crawlRoute) }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(Theme.inkMuted)
-                                }
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface.opacity(0.95)))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentDeep.opacity(0.3), lineWidth: 1))
-                        }
+                        routeStopsList
 
                         Divider().overlay(Theme.hairline).padding(.vertical, 4)
                     }
 
-                    // Available pubs
-                    ForEach(pubs) { pub in
-                        let inRoute = crawlRoute.contains(pub)
+                    // Available pubs (excluding those already in the route)
+                    let available = pubs.filter { pub in !crawlRoute.contains(where: { $0.id == pub.id }) }
+                    ForEach(available) { pub in
                         Button {
-                            if inRoute {
-                                crawlRoute.removeAll { $0.id == pub.id }
-                            } else {
-                                crawlRoute.append(pub)
-                            }
+                            crawlRoute.append(pub)
                             optimiseRoute()
                             Task { await recalculateWalkingRoutes(for: crawlRoute) }
                         } label: {
                             HStack(spacing: 10) {
-                                Image(systemName: inRoute ? "checkmark.circle.fill" : "plus.circle")
-                                    .foregroundStyle(inRoute ? Theme.success : Theme.accent)
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(Theme.accent)
                                     .font(.body)
                                 Image(systemName: pub.venueType.icon)
                                     .foregroundStyle(pub.venueType.color)
@@ -423,10 +414,8 @@ struct PubMapView: View {
                             }
                         }
                         .padding(.horizontal, 14).padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(
-                            inRoute ? Theme.success.opacity(0.08) : Theme.surface.opacity(0.95)))
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(
-                            inRoute ? Theme.success.opacity(0.3) : Theme.hairline, lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface.opacity(0.95)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.hairline, lineWidth: 1))
                         .buttonStyle(BeerifyPressStyle())
                     }
                 }
@@ -435,10 +424,92 @@ struct PubMapView: View {
         }
     }
 
+    // MARK: Route Stops List (drag to reorder)
+
+    private var routeStopsList: some View {
+        ForEach(Array(crawlRoute.enumerated()), id: \.element.id) { i, pub in
+            HStack(spacing: 10) {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundStyle(Theme.inkMuted)
+                    .font(.caption)
+                ZStack {
+                    Circle().fill(Theme.accentDeep).frame(width: 26, height: 26)
+                    Text("\(i + 1)").font(.caption2.weight(.heavy)).foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pub.name).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    if i < walkingRoutes.count - 1 {
+                        Text(String(format: "%.0f min walk to next", walkingRoutes[i].expectedTravelTime / 60))
+                            .font(.caption2).foregroundStyle(Theme.inkMuted)
+                    } else if i == crawlRoute.count - 1 && walkingRoutes.count == crawlRoute.count {
+                        Text(String(format: "%.0f min back to start", walkingRoutes.last!.expectedTravelTime / 60))
+                            .font(.caption2).foregroundStyle(Theme.inkMuted)
+                    }
+                }
+                Spacer()
+                Button {
+                    crawlRoute.removeAll { $0.id == pub.id }
+                    Task { await recalculateWalkingRoutes(for: crawlRoute) }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.inkMuted)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.surface.opacity(0.95)))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentDeep.opacity(0.3), lineWidth: 1))
+            .draggable(pub.id) {
+                // Drag preview
+                Text(pub.name)
+                    .font(.subheadline.weight(.bold))
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accentDeep.opacity(0.9)))
+                    .foregroundStyle(.white)
+            }
+            .dropDestination(for: String.self) { items, _ in
+                guard let draggedId = items.first,
+                      let fromIndex = crawlRoute.firstIndex(where: { $0.id == draggedId }),
+                      let toIndex = crawlRoute.firstIndex(where: { $0.id == pub.id }),
+                      fromIndex != toIndex else { return false }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    crawlRoute.move(fromOffsets: IndexSet(integer: fromIndex),
+                                    toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+                }
+                Task { await recalculateWalkingRoutes(for: crawlRoute) }
+                return true
+            }
+        }
+    }
+
     // MARK: Pub Golf Section
+
+    private var inRoom: Bool {
+        store.data.room != nil && roomService.isActive
+    }
+
+    private var hasSharedGame: Bool {
+        roomService.pubGolfGame != nil
+    }
 
     private var pubGolfSection: some View {
         VStack(spacing: 0) {
+            let showingGame = golfGameActive || hasSharedGame
+
+            // How to play - shown before the game starts
+            if !showingGame {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("How to play").font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Each pub is a hole. Each hole has a drink and a par (target number of sips to finish it). Drink up, count your sips, and log them. Fewer sips = better score. Lowest total wins!")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.info.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.info.opacity(0.4), lineWidth: 1))
+                .padding(.horizontal, 20).padding(.bottom, 8)
+            }
+
             // Pinned route map
             routePreviewMap(stops: golfHoles.map(\.pub))
                 .padding(.horizontal, 20)
@@ -458,24 +529,34 @@ struct PubMapView: View {
                 .padding(.horizontal, 20).padding(.vertical, 6)
             }
 
-            // Action buttons
-            if !golfHoles.isEmpty {
+            // Action buttons when holes are selected but game not started
+            if !golfHoles.isEmpty && !golfGameActive && !hasSharedGame {
                 HStack(spacing: 8) {
-                    if !crawlRoute.isEmpty && golfHoles.isEmpty {
-                        Button {
-                            golfHoles = crawlRoute.enumerated().map { i, pub in
-                                PubGolfHole(pub: pub, drink: defaultDrink(for: i), par: defaultPar(for: i))
+                    // Start game button
+                    Button {
+                        golfGameActive = true
+                        if inRoom {
+                            let sharedHoles = golfHoles.map { hole in
+                                SharedPubGolfHole(
+                                    id: hole.id.uuidString,
+                                    pubName: hole.pub.name,
+                                    latitude: hole.pub.coordinate.latitude,
+                                    longitude: hole.pub.coordinate.longitude,
+                                    drink: hole.drink,
+                                    par: hole.par
+                                )
                             }
-                            Task { await recalculateWalkingRoutes(for: golfHoles.map(\.pub)) }
-                        } label: {
-                            Label("Use Crawl Route", systemImage: "figure.walk")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                                .background(Capsule().fill(Theme.accentDeep))
+                            roomService.pubGolfStart(holes: sharedHoles)
                         }
-                        .buttonStyle(BeerifyPressStyle())
+                    } label: {
+                        Label(inRoom ? "Start Game (share with room)" : "Start Game", systemImage: "flag.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Capsule().fill(Theme.success))
                     }
+                    .buttonStyle(BeerifyPressStyle())
+
                     Button {
                         golfHoles.removeAll()
                         walkingRoutes = []
@@ -492,18 +573,90 @@ struct PubMapView: View {
                 .padding(.horizontal, 20).padding(.bottom, 4)
             }
 
+            // End game button when active
+            if golfGameActive || hasSharedGame {
+                HStack(spacing: 8) {
+                    Button {
+                        golfGameActive = false
+                        golfHoles.removeAll()
+                        walkingRoutes = []
+                        if inRoom { roomService.pubGolfEnd() }
+                    } label: {
+                        Label("End Game", systemImage: "xmark.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.danger)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Capsule().fill(Theme.danger.opacity(0.12)))
+                    }
+                    .buttonStyle(BeerifyPressStyle())
+                    Spacer()
+                    if inRoom {
+                        let memberCount = roomService.pubGolfGame?.progress.count ?? 0
+                        Label("\(memberCount) playing", systemImage: "person.2.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.accentDeep)
+                    }
+                }
+                .padding(.horizontal, 20).padding(.bottom, 4)
+            }
+
             Divider().overlay(Theme.hairline).padding(.horizontal, 20)
 
-            if golfHoles.isEmpty {
-                // Pub selection list
+            if showingGame {
+                // Active game scorecard
+                ScrollView {
+                    VStack(spacing: 10) {
+                        pubGolfScorecard
+                    }
+                    .padding(20)
+                }
+            } else {
+                // Pub selection list - always visible until game starts.
+                // Selected holes show as checked so you can keep adding more.
                 List {
-                    if !crawlRoute.isEmpty {
+                    // Selected holes summary
+                    if !golfHoles.isEmpty {
+                        Section {
+                            ForEach(Array(golfHoles.enumerated()), id: \.element.id) { i, hole in
+                                HStack(spacing: 8) {
+                                    Text("\(i + 1)")
+                                        .font(.caption.weight(.heavy)).foregroundStyle(.white)
+                                        .frame(width: 22, height: 22)
+                                        .background(Circle().fill(Theme.accentDeep))
+                                    Image(systemName: hole.pub.venueType.icon)
+                                        .foregroundStyle(hole.pub.venueType.color).font(.caption)
+                                    Text(hole.pub.name)
+                                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    Spacer()
+                                    Text(hole.drink).font(.caption2).foregroundStyle(Theme.inkSoft)
+                                    Text("Par \(hole.par)")
+                                        .font(.caption.weight(.bold)).foregroundStyle(Theme.accentDeep)
+                                    Button {
+                                        golfHoles.remove(at: i)
+                                        Task { await optimiseAndRouteGolfHoles() }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(Theme.inkMuted)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .listRowBackground(Theme.success.opacity(0.08))
+                            }
+                        } header: {
+                            Text("Your Course (\(golfHoles.count) hole\(golfHoles.count == 1 ? "" : "s"))")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.accentDeep)
+                                .textCase(nil)
+                        }
+                    }
+
+                    if !crawlRoute.isEmpty && golfHoles.isEmpty {
                         Section {
                             Button {
                                 golfHoles = crawlRoute.enumerated().map { i, pub in
                                     PubGolfHole(pub: pub, drink: defaultDrink(for: i), par: defaultPar(for: i))
                                 }
-                                Task { await recalculateWalkingRoutes(for: golfHoles.map(\.pub)) }
+                                Task { await optimiseAndRouteGolfHoles() }
                             } label: {
                                 Label("Use Pub Crawl Route (\(crawlRoute.count) stops)", systemImage: "figure.walk")
                                     .font(.subheadline.weight(.semibold))
@@ -521,11 +674,13 @@ struct PubMapView: View {
                         ForEach(pubs) { pub in
                             let alreadyAdded = golfHoles.contains { $0.pub == pub }
                             Button {
-                                if !alreadyAdded {
+                                if alreadyAdded {
+                                    golfHoles.removeAll { $0.pub == pub }
+                                } else {
                                     let i = golfHoles.count
                                     golfHoles.append(PubGolfHole(pub: pub, drink: defaultDrink(for: i), par: defaultPar(for: i)))
-                                    Task { await recalculateWalkingRoutes(for: golfHoles.map(\.pub)) }
                                 }
+                                Task { await optimiseAndRouteGolfHoles() }
                             } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: alreadyAdded ? "checkmark.circle.fill" : "plus.circle")
@@ -534,6 +689,10 @@ struct PubMapView: View {
                                         .foregroundStyle(pub.venueType.color).font(.caption)
                                     Text(pub.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                                     Spacer()
+                                    if alreadyAdded, let idx = golfHoles.firstIndex(where: { $0.pub == pub }) {
+                                        Text("Hole \(idx + 1)")
+                                            .font(.caption2.weight(.bold)).foregroundStyle(Theme.accentDeep)
+                                    }
                                 }
                             }
                             .listRowBackground(alreadyAdded ? Theme.success.opacity(0.08) : Theme.surface.opacity(0.95))
@@ -547,14 +706,20 @@ struct PubMapView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-            } else {
-                // Active game scorecard
-                ScrollView {
-                    VStack(spacing: 10) {
-                        pubGolfScorecard
-                    }
-                    .padding(20)
+            }
+        }
+        .onChange(of: roomService.pubGolfGame) { _, newGame in
+            // When a shared game arrives from the room and we don't have local holes,
+            // populate them so we see the course.
+            if let game = newGame, golfHoles.isEmpty {
+                golfHoles = game.holes.map { hole in
+                    let coord = CLLocationCoordinate2D(latitude: hole.latitude, longitude: hole.longitude)
+                    let pub = Pub(id: hole.id, name: hole.pubName, coordinate: coord,
+                                  address: nil, venueType: .pub, mapItem: nil)
+                    return PubGolfHole(pub: pub, drink: hole.drink, par: hole.par)
                 }
+                golfGameActive = true
+                Task { await optimiseAndRouteGolfHoles() }
             }
         }
     }
@@ -593,6 +758,7 @@ struct PubMapView: View {
                             Button {
                                 if let s = golfHoles[i].strokes, s > 1 {
                                     golfHoles[i].strokes = s - 1
+                                    broadcastGolfScore(holeIndex: i)
                                 }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
@@ -603,9 +769,40 @@ struct PubMapView: View {
                                 .frame(minWidth: 30)
                             Button {
                                 golfHoles[i].strokes = (golfHoles[i].strokes ?? 0) + 1
+                                broadcastGolfScore(holeIndex: i)
                             } label: {
                                 Image(systemName: "plus.circle.fill")
                                     .foregroundStyle(Theme.accent)
+                            }
+                        }
+                    }
+
+                    // Show room members' scores for this hole
+                    if let game = roomService.pubGolfGame, game.progress.count > 1 {
+                        let holeId = hole.id.uuidString
+                        let myId = store.data.room?.memberId
+                        let others = game.progress.values.filter { $0.memberId != myId }
+                        if !others.isEmpty {
+                            Divider().overlay(Theme.hairline)
+                            ForEach(others.sorted(by: { $0.memberName < $1.memberName }), id: \.memberId) { prog in
+                                HStack(spacing: 6) {
+                                    Text(Avatars.avatar(for: prog.memberId)).font(.caption)
+                                    Text(prog.memberName).font(.caption2.weight(.semibold)).foregroundStyle(Theme.inkSoft)
+                                    Spacer()
+                                    if let score = prog.scores[holeId] {
+                                        Text("\(score) sips").font(.caption2.weight(.bold)).foregroundStyle(Theme.ink)
+                                        let diff = score - hole.par
+                                        Text(scoreLabel(diff))
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(diff <= 0 ? Theme.success : Theme.danger)
+                                    } else if prog.currentHoleIndex == i {
+                                        Text("drinking...").font(.caption2).foregroundStyle(Theme.accent)
+                                    } else if prog.currentHoleIndex > i {
+                                        Text("--").font(.caption2).foregroundStyle(Theme.inkMuted)
+                                    } else {
+                                        Text("waiting").font(.caption2).foregroundStyle(Theme.inkMuted)
+                                    }
+                                }
                             }
                         }
                     }
@@ -615,6 +812,36 @@ struct PubMapView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.hairline, lineWidth: 1))
             }
 
+            // Room leaderboard
+            if let game = roomService.pubGolfGame, game.progress.count > 1 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Leaderboard").font(.headline).foregroundStyle(Theme.ink)
+                    let sorted = game.progress.values.sorted { a, b in
+                        let aTotal = a.scores.values.reduce(0, +)
+                        let bTotal = b.scores.values.reduce(0, +)
+                        return aTotal < bTotal
+                    }
+                    ForEach(Array(sorted.enumerated()), id: \.element.memberId) { rank, prog in
+                        let total = prog.scores.values.reduce(0, +)
+                        let holesPlayed = prog.scores.count
+                        HStack {
+                            Text("\(rank + 1).").font(.caption.weight(.bold)).foregroundStyle(Theme.accentDeep)
+                                .frame(width: 20, alignment: .leading)
+                            Text(Avatars.avatar(for: prog.memberId)).font(.caption)
+                            Text(prog.memberName).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Spacer()
+                            Text("\(holesPlayed)/\(golfHoles.count) holes")
+                                .font(.caption2).foregroundStyle(Theme.inkSoft)
+                            Text("\(total) sips")
+                                .font(.subheadline.weight(.bold)).foregroundStyle(Theme.accentDeep)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accent.opacity(0.1)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.4), lineWidth: 1))
+            }
+
             // Total score
             let totalStrokes = golfHoles.compactMap(\.strokes).reduce(0, +)
             let totalPar = golfHoles.reduce(0) { $0 + $1.par }
@@ -622,10 +849,10 @@ struct PubMapView: View {
 
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Total Score").font(.headline).foregroundStyle(Theme.ink)
+                    Text("Your Score").font(.headline).foregroundStyle(Theme.ink)
                     if completed {
                         let diff = totalStrokes - totalPar
-                        Text(diff == 0 ? "Even par!" : diff < 0 ? "\(diff) — Under par!" : "+\(diff) — Over par")
+                        Text(diff == 0 ? "Even par!" : diff < 0 ? "\(diff) - Under par!" : "+\(diff) - Over par")
                             .font(.caption).foregroundStyle(diff <= 0 ? Theme.success : Theme.warning)
                     }
                 }
@@ -746,9 +973,407 @@ struct PubMapView: View {
         ))
     }
 
+    // MARK: - Pub Bingo
+
+    struct BingoSquare: Identifiable {
+        let id: Int           // 0-24 position on the grid
+        let challenge: String
+        var completed: Bool
+    }
+
+    static let bingoChallenges: [SpicyPrompt] = [
+        // Level 1 - wholesome pub vibes
+        .init(text: "Order a drink you've never tried", level: 1),
+        .init(text: "Take a photo of everyone's drinks", level: 1),
+        .init(text: "Cheers with someone outside your group", level: 1),
+        .init(text: "Compliment the bartender", level: 1),
+        .init(text: "Spot a dog in or near the pub", level: 1),
+        .init(text: "Learn the bartender's name", level: 1),
+        .init(text: "Spot something vintage on the wall", level: 1),
+        .init(text: "Find a pub quiz flyer or chalkboard", level: 1),
+        .init(text: "Someone in the group spills a drink", level: 1),
+        .init(text: "Group selfie at the bar", level: 1),
+        .init(text: "Order food at the bar", level: 1),
+        .init(text: "Sit in the beer garden", level: 1),
+        .init(text: "Find a board game in the pub", level: 1),
+        .init(text: "Spot a TV showing sports", level: 1),
+        .init(text: "Everyone orders a different drink", level: 1),
+        .init(text: "Find a jukebox or music selector", level: 1),
+        .init(text: "Try a drink from the tap", level: 1),
+        // Level 2 - social / interactive
+        .init(text: "Ask the bartender for their recommendation and order it", level: 2),
+        .init(text: "Swap drinks with someone in the group", level: 2),
+        .init(text: "Order the weirdest thing on the menu", level: 2),
+        .init(text: "Ask someone outside your group to take a photo of you all", level: 2),
+        .init(text: "Challenge someone in the group to a thumb war", level: 2),
+        .init(text: "Find someone wearing the same colour as you", level: 2),
+        .init(text: "Spot someone on a date", level: 2),
+        .init(text: "Say cheers in a language nobody in the group speaks", level: 2),
+        .init(text: "Drink a full glass of water between rounds", level: 2),
+        .init(text: "Swap seats with someone in the group", level: 2),
+        .init(text: "Try a cocktail nobody has heard of", level: 2),
+        .init(text: "Find the most expensive drink on the menu", level: 2),
+        .init(text: "Someone tells a story that makes the whole group laugh", level: 2),
+        .init(text: "Take a photo with something weird in the pub", level: 2),
+        .init(text: "Someone in the group does a toast", level: 2),
+        // Level 3 - more adventurous
+        .init(text: "Make a new friend at the pub (genuine convo, not forced)", level: 3),
+        .init(text: "Arm wrestle someone in the group", level: 3),
+        .init(text: "Do karaoke or sing along to a song out loud", level: 3),
+        .init(text: "Have a dance even if there's no dance floor", level: 3),
+        .init(text: "Ask the bartender to surprise you with a drink", level: 3),
+        .init(text: "Someone in the group tells a secret they've never told", level: 3),
+        .init(text: "Get a round in for the squad", level: 3),
+        .init(text: "Find out a fun fact about the pub you're in", level: 3),
+        .init(text: "Everyone does a shot at the same time", level: 3),
+        .init(text: "Tell the bartender a joke", level: 3),
+        .init(text: "Someone in the group impersonates another group member", level: 3),
+        .init(text: "Play a pub game (darts, pool, cards, anything)", level: 3),
+        .init(text: "Someone changes their drink order last second", level: 3),
+        .init(text: "Send a selfie from the pub to someone who couldn't make it", level: 3),
+        .init(text: "Find out what the bartender's favourite drink is", level: 3),
+        // Level 4 - bold moves (fun, not annoying)
+        .init(text: "Wingman for a friend (help start a genuine convo)", level: 4),
+        .init(text: "Two people in the group swap an item of clothing", level: 4),
+        .init(text: "Everyone shares their most embarrassing story", level: 4),
+        .init(text: "Order a drink in a fake accent", level: 4),
+        .init(text: "Someone in the group does their best dance move", level: 4),
+        .init(text: "Convince the bartender to make an off-menu creation", level: 4),
+        .init(text: "Someone gives a heartfelt toast about a friend in the group", level: 4),
+        .init(text: "Play a round of your spiciest game from the app", level: 4),
+        .init(text: "Everyone guesses the price of a random cocktail before checking", level: 4),
+        .init(text: "Do a blind taste test (someone orders for you, you guess what it is)", level: 4),
+        .init(text: "Someone admits who they fancy", level: 4),
+        .init(text: "Share your most unpopular opinion with the group", level: 4),
+        .init(text: "Video-call someone who isn't there and show them the vibe", level: 4),
+        .init(text: "Rate every pub you've been to tonight out of 10", level: 4),
+        .init(text: "Someone reveals the last lie they told", level: 4),
+        // Level 5 - send it (still fun, not dangerous)
+        .init(text: "Whole group learns and performs a TikTok dance", level: 5),
+        .init(text: "Someone does a dramatic reading of their last text conversation", level: 5),
+        .init(text: "Everyone shares one thing they've never told the group", level: 5),
+        .init(text: "Convince the bartender to let you pour your own pint", level: 5),
+        .init(text: "Make someone in the group cry laughing", level: 5),
+        .init(text: "Go to the next pub and order the exact same drink as your last one", level: 5),
+        .init(text: "Everyone picks a different accent and orders in it", level: 5),
+        .init(text: "Do a group conga line through the pub", level: 5),
+        .init(text: "Someone freestyle raps about the night so far", level: 5),
+        .init(text: "Play 'guess the song' - hum it, squad guesses", level: 5),
+        .init(text: "Everyone writes a one-line review of the pub on a napkin", level: 5),
+        .init(text: "Someone tells the group something they've been wanting to say all night", level: 5),
+        .init(text: "Entire group takes a photo recreating a famous album cover", level: 5),
+        .init(text: "Start a genuine deep chat with someone in the group you usually don't", level: 5),
+        .init(text: "Share your screen time report with the group", level: 5),
+    ]
+
+    private func generateBingoCard() {
+        let spiciness = store.data.preferences.spiciness
+        let pool = Self.bingoChallenges.filter { $0.level <= spiciness }.map(\.text)
+        // Deterministic shuffle when in a room so everyone gets the same card.
+        // Uses room code + a generation counter as the seed.
+        let seed: UInt64
+        if let code = store.data.room?.code {
+            let codeHash = code.unicodeScalars.reduce(UInt64(0)) { $0 &* 31 &+ UInt64($1.value) }
+            seed = codeHash &+ UInt64(bingoSeed)
+        } else {
+            seed = UInt64(arc4random())
+        }
+        var rng = SeededRNG(seed: seed)
+        let shuffled = pool.shuffled(using: &rng)
+        let selected = Array(shuffled.prefix(25))
+        var card: [BingoSquare] = []
+        for i in 0..<25 {
+            let text = i < selected.count ? selected[i] : "Wildcard: make one up!"
+            card.append(BingoSquare(id: i, challenge: text, completed: false))
+        }
+        bingoCard = card
+        bingoSeed += 1
+        bingoLines = []
+        fullHouse = false
+        showBingoCelebration = false
+    }
+
+    private func toggleSquare(_ index: Int) {
+        bingoCard[index].completed.toggle()
+        checkBingo()
+    }
+
+    private func checkBingo() {
+        var newLines: Set<Int> = []
+        // Rows (line indices 0-4)
+        for row in 0..<5 {
+            let start = row * 5
+            if (start..<start+5).allSatisfy({ bingoCard[$0].completed }) {
+                newLines.insert(row)
+            }
+        }
+        // Columns (line indices 5-9)
+        for col in 0..<5 {
+            if stride(from: col, to: 25, by: 5).allSatisfy({ bingoCard[$0].completed }) {
+                newLines.insert(5 + col)
+            }
+        }
+        // Diagonal top-left to bottom-right (line index 10)
+        if stride(from: 0, to: 25, by: 6).allSatisfy({ bingoCard[$0].completed }) {
+            newLines.insert(10)
+        }
+        // Diagonal top-right to bottom-left (line index 11)
+        if stride(from: 4, through: 20, by: 4).allSatisfy({ bingoCard[$0].completed }) {
+            newLines.insert(11)
+        }
+        // Detect new bingo
+        let newBingos = newLines.subtracting(bingoLines)
+        bingoLines = newLines
+
+        // Full house
+        let isFullHouse = bingoCard.allSatisfy(\.completed)
+        if isFullHouse { fullHouse = true }
+
+        if !newBingos.isEmpty || (isFullHouse && !showBingoCelebration) {
+            withAnimation(.easeOut(duration: 0.35)) {
+                showBingoCelebration = true
+            }
+        }
+    }
+
+    private func lineContains(square index: Int) -> Bool {
+        let row = index / 5
+        let col = index % 5
+        if bingoLines.contains(row) { return true }        // row
+        if bingoLines.contains(5 + col) { return true }    // column
+        if row == col && bingoLines.contains(10) { return true }  // main diagonal
+        if row + col == 4 && bingoLines.contains(11) { return true }  // anti diagonal
+        return false
+    }
+
+    // MARK: Bingo Card UI
+
+    private var pubBingoSection: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                if bingoCard.isEmpty {
+                    bingoSetupView
+                } else {
+                    bingoGameView
+                }
+            }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+        }
+    }
+
+    private var bingoSetupView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // How to play
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pub Bingo").font(.title3.weight(.heavy)).foregroundStyle(Theme.ink)
+                Text("A 5x5 card of pub challenges. Tap a square when you complete it. Get five in a row \u{2014} horizontal, vertical, or diagonal \u{2014} and shout BINGO! Complete the full card for a legendary night.")
+                    .font(.caption).foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Spiciness reminder
+            let level = store.data.preferences.spiciness
+            let emoji = ["", "🍼", "🙂", "😏", "🌶", "🔥"][min(5, max(1, level))]
+            HStack(spacing: 8) {
+                Text(emoji).font(.title3)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Spiciness: \(level)/5").font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Challenges adapt to your spiciness level from Settings.")
+                        .font(.caption2).foregroundStyle(Theme.inkSoft)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.accent.opacity(0.1)))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accent.opacity(0.3), lineWidth: 1))
+
+            // Room info
+            if inRoom {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.3.fill").foregroundStyle(Theme.accentDeep).font(.caption)
+                    Text("Everyone in the room gets the same card. Race to bingo!")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.accentDeep.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.accentDeep.opacity(0.25), lineWidth: 1))
+            }
+
+            Button {
+                generateBingoCard()
+            } label: {
+                Label("Deal a new card", systemImage: "rectangle.grid.3x2.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.accent)
+        }
+    }
+
+    private var bingoGameView: some View {
+        VStack(spacing: 12) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pub Bingo").font(.title3.weight(.heavy)).foregroundStyle(Theme.ink)
+                    let completed = bingoCard.filter(\.completed).count
+                    Text("\(completed)/25 completed \u{00B7} \(bingoLines.count) line\(bingoLines.count == 1 ? "" : "s")")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                }
+                Spacer()
+                Button {
+                    generateBingoCard()
+                } label: {
+                    Label("New card", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.accentDeep)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.accentDeep.opacity(0.12)))
+                }
+                .buttonStyle(BeerifyPressStyle())
+            }
+
+            // BINGO header letters
+            HStack(spacing: 0) {
+                ForEach(["B", "I", "N", "G", "O"], id: \.self) { letter in
+                    Text(letter)
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            // 5x5 grid
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 5)
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(0..<25, id: \.self) { i in
+                    bingoSquareView(index: i)
+                }
+            }
+
+            // Progress bar
+            let progress = Double(bingoCard.filter(\.completed).count) / 25.0
+            VStack(spacing: 4) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Theme.surface)
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(fullHouse ? Theme.success : (bingoLines.isEmpty ? Theme.accent : Theme.accentDeep))
+                            .frame(width: geo.size.width * progress, height: 8)
+                            .animation(.spring(response: 0.4), value: progress)
+                    }
+                }
+                .frame(height: 8)
+                HStack {
+                    Text(fullHouse ? "FULL HOUSE!" : bingoLines.isEmpty ? "Get five in a row..." : "BINGO! Keep going for full house!")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(fullHouse ? Theme.success : (bingoLines.isEmpty ? Theme.inkSoft : Theme.accentDeep))
+                    Spacer()
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func bingoSquareView(index: Int) -> some View {
+        let square = bingoCard[index]
+        let isInBingoLine = lineContains(square: index)
+
+        return Button {
+            toggleSquare(index)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isInBingoLine ? Theme.success : (square.completed ? Theme.accentDeep : Theme.surface.opacity(0.95)))
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isInBingoLine ? Theme.success.opacity(0.8) : (square.completed ? Theme.accentDeep.opacity(0.6) : Theme.hairline),
+                            lineWidth: isInBingoLine ? 2 : 1)
+                Text(square.challenge)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(square.completed ? .white : Theme.ink)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(4)
+                    .minimumScaleFactor(0.6)
+                    .padding(3)
+                if square.completed {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BeerifyPressStyle())
+        .animation(.easeInOut(duration: 0.2), value: square.completed)
+        .animation(.easeInOut(duration: 0.3), value: isInBingoLine)
+    }
+
+    // MARK: Bingo Celebration (confetti overlay)
+
+    private var bingoCelebrationOverlay: some View {
+        ZStack {
+            // Dimmed background
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showBingoCelebration = false
+                    }
+                }
+
+            // Confetti particles
+            BingoConfettiView()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            // Content card
+            VStack(spacing: 20) {
+                Text(fullHouse ? "🏆" : "🎉")
+                    .font(.system(size: 72))
+
+                Text(fullHouse ? "FULL HOUSE!" : "BINGO!")
+                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+
+                Text(fullHouse
+                     ? "Every single square. Legendary."
+                     : "Five in a row! Keep going for full house.")
+                    .font(.callout)
+                    .foregroundStyle(Theme.inkSoft)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showBingoCelebration = false
+                    }
+                } label: {
+                    Text(fullHouse ? "Take a bow" : "Keep playing")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(fullHouse ? Theme.success : Theme.accent)
+            }
+            .padding(28)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+            )
+            .padding(.horizontal, 32)
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
+        }
+    }
+
     // MARK: Route Calculation
 
-    /// The active list of pubs for routing — crawl route or golf holes
+    /// The active list of pubs for routing - crawl route or golf holes
     private var activeRoute: [Pub] {
         if !golfHoles.isEmpty { return golfHoles.map(\.pub) }
         return crawlRoute
@@ -802,7 +1427,7 @@ struct PubMapView: View {
                 continue
             }
         }
-        // All retries failed — fall back to straight line
+        // All retries failed - fall back to straight line
         return .straightLine(from: from.coordinate, to: to.coordinate)
     }
 
@@ -1025,6 +1650,125 @@ struct PubMapView: View {
         case 0: return "Par"
         case 1: return "+1 Bogey"
         default: return "+\(diff) Over"
+        }
+    }
+
+    /// Reorder golf holes for the shortest walking route, preserving
+    /// each hole's drink and par assignment, then recalculate directions.
+    private func optimiseAndRouteGolfHoles() async {
+        guard golfHoles.count >= 2 else {
+            walkingRoutes = []
+            return
+        }
+        if golfHoles.count >= 3 {
+            let start = locationManager.userLocation?.coordinate ?? searchCenter
+            let pubOrder: [Pub]
+            if golfHoles.count <= 14 {
+                pubOrder = heldKarp(pubs: golfHoles.map(\.pub), start: start)
+            } else {
+                pubOrder = heuristicOptimise(pubs: golfHoles.map(\.pub), start: start)
+            }
+            var holesByPub: [String: PubGolfHole] = [:]
+            for hole in golfHoles { holesByPub[hole.pub.id] = hole }
+            golfHoles = pubOrder.compactMap { holesByPub[$0.id] }
+        }
+        await recalculateWalkingRoutes(for: golfHoles.map(\.pub))
+    }
+
+    /// Broadcast the current sip count for a hole to room peers.
+    private func broadcastGolfScore(holeIndex: Int) {
+        guard inRoom, let strokes = golfHoles[holeIndex].strokes else { return }
+        let holeId = golfHoles[holeIndex].id.uuidString
+        // Find the furthest hole with a score to report current position
+        let currentIdx = golfHoles.lastIndex(where: { $0.strokes != nil }) ?? holeIndex
+        roomService.pubGolfUpdateScore(holeId: holeId, strokes: strokes, currentHoleIndex: currentIdx)
+    }
+}
+
+// MARK: - Confetti
+
+private struct ConfettiPiece: View {
+    let color: Color
+    let startX: CGFloat   // 0...1 fraction of screen width
+    let delay: Double
+    let duration: Double
+    let spinSpeed: Double
+    let size: CGFloat
+    let shape: Int        // 0 = rectangle, 1 = circle, 2 = triangle-ish
+
+    @State private var fallen = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            confettiShape
+                .frame(width: size, height: size * 0.6)
+                .foregroundStyle(color)
+                .rotationEffect(.degrees(fallen ? spinSpeed * 360 : 0))
+                .position(
+                    x: startX * w + (fallen ? CGFloat.random(in: -30...30) : 0),
+                    y: fallen ? h + 40 : -20
+                )
+                .animation(
+                    .easeIn(duration: duration).delay(delay),
+                    value: fallen
+                )
+                .onAppear { fallen = true }
+        }
+    }
+
+    @ViewBuilder
+    private var confettiShape: some View {
+        switch shape % 3 {
+        case 0: Rectangle()
+        case 1: Circle()
+        default: Ellipse()
+        }
+    }
+}
+
+private struct BingoConfettiView: View {
+    private static let colors: [Color] = [
+        .red, .orange, .yellow, .green, .blue, .purple, .pink, .mint, .cyan, .indigo
+    ]
+
+    private let pieces: [ConfettiPieceData] = (0..<50).map { i in
+        ConfettiPieceData(
+            color: colors[i % colors.count],
+            startX: CGFloat.random(in: 0...1),
+            delay: Double.random(in: 0...0.8),
+            duration: Double.random(in: 1.5...3.5),
+            spinSpeed: Double.random(in: 1...4),
+            size: CGFloat.random(in: 8...14),
+            shape: Int.random(in: 0...2)
+        )
+    }
+
+    struct ConfettiPieceData: Identifiable {
+        let id = UUID()
+        let color: Color
+        let startX: CGFloat
+        let delay: Double
+        let duration: Double
+        let spinSpeed: Double
+        let size: CGFloat
+        let shape: Int
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(pieces) { p in
+                ConfettiPiece(
+                    color: p.color,
+                    startX: p.startX,
+                    delay: p.delay,
+                    duration: p.duration,
+                    spinSpeed: p.spinSpeed,
+                    size: p.size,
+                    shape: p.shape
+                )
+            }
         }
     }
 }

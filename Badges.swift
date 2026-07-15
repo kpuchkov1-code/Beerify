@@ -51,17 +51,12 @@ enum Badges {
         // Session-specific badges.
         if session.waters.count >= 3 { earned.append(byId["hydration_hero"]!) }
 
-        if let end = session.endedAt {
-            let hour = Calendar.current.component(.hour, from: end)
-            if hour < 24 && hour >= 0 && hour < 24 {
-                // Ended between 00:00 and 23:59 — we mean "before midnight" as
-                // "before local midnight of the start day". Compare by day.
-                let cal = Calendar.current
-                let startDay = cal.startOfDay(for: session.startedAt)
-                let midnight = cal.date(byAdding: .day, value: 1, to: startDay) ?? end
-                if end < midnight && !session.drinks.isEmpty {
-                    earned.append(byId["home_before_midnight"]!)
-                }
+        if let end = session.endedAt, !session.drinks.isEmpty {
+            let cal = Calendar.current
+            let startDay = cal.startOfDay(for: session.startedAt)
+            let midnight = cal.date(byAdding: .day, value: 1, to: startDay) ?? end
+            if end < midnight {
+                earned.append(byId["home_before_midnight"]!)
             }
         }
 
@@ -89,7 +84,7 @@ enum Badges {
             earned.append(byId["designated_driver"]!)
         }
 
-        // 5-night streak — trailing 5 sessions each on different days.
+        // 5-night streak - trailing 5 sessions each on different days.
         let recentDays = history.suffix(5).map { Calendar.current.startOfDay(for: $0.startedAt) }
         if recentDays.count == 5, Set(recentDays).count == 5 {
             earned.append(byId["streak_5"]!)

@@ -62,14 +62,14 @@ enum Coach {
             switch msg.tone {
             case .cheer: text = msg.text + " Do another? 😈"
             case .chill: text = msg.text + " Boring! One more!"
-            case .nudge: text = msg.text.replacingOccurrences(of: "water", with: "shot", options: .caseInsensitive)
+            case .nudge: text = msg.text.replacingOccurrences(of: "\\bwater\\b", with: "shot", options: [.regularExpression, .caseInsensitive])
             case .warn: text = msg.text  // gremlin still respects real warnings
             }
             return CoachMessage(tone: msg.tone, text: text, tip: msg.tip)
         }
     }
 
-    /// Deep hangover forecast — 0-100 severity based on total units,
+    /// Deep hangover forecast - 0-100 severity based on total units,
     /// water:drink ratio, and session length.
     static func hangoverScore(session: NightSession, profile: Profile) -> Int {
         let units = session.drinks.reduce(0.0) { $0 + $1.units }

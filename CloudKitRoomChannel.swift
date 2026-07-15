@@ -106,7 +106,7 @@ final class CloudKitRoomChannel {
         currentCode = nil
     }
 
-    /// Handle a silent push forwarded by AppDelegate — refetch the room.
+    /// Handle a silent push forwarded by AppDelegate - refetch the room.
     func handlePush() async {
         guard let code = currentCode else { return }
         await fetchAll(code: code)
@@ -133,7 +133,7 @@ final class CloudKitRoomChannel {
                 @unknown default: label = "unknown iCloud status"
                 }
                 ckLog.error("iCloud account status: \(label, privacy: .public)")
-                onError?("Remote sync off — \(label). Local room still works.")
+                onError?("Remote sync off - \(label). Local room still works.")
             }
             return ok
         } catch {
@@ -189,7 +189,7 @@ final class CloudKitRoomChannel {
     }
 
     private func handle(error: Error, context: String) {
-        ckLog.error("\(context, privacy: .public) failed: \(error.localizedDescription, privacy: .public) — full: \(String(describing: error), privacy: .public)")
+        ckLog.error("\(context, privacy: .public) failed: \(error.localizedDescription, privacy: .public) - full: \(String(describing: error), privacy: .public)")
         onError?("\(context): \(error.localizedDescription)")
     }
 

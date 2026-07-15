@@ -50,10 +50,7 @@ struct NightOutView: View {
     private var minsUntilDrive: Int {
         BAC.minutesUntilBac(drinks: session.drinks, profile: profile, from: now, targetBac: 0.02)
     }
-    private var shouldEatNudge: Bool {
-        session.drinks.count >= 3 && session.waters.isEmpty && status != .sober
-    }
-    private var showRideButton: Bool { status == .over || status == .wayOver }
+
 
     struct Cheer: Equatable { let id: Int; let name: String }
 
@@ -235,12 +232,18 @@ struct NightOutView: View {
             HStack(spacing: 10) {
                 extrasTile(icon: "⏳",
                            label: "Safe to drive",
-                           value: minsUntilDrive <= 0 ? "—" : Fmt.duration(minutes: minsUntilDrive),
+                           value: minsUntilDrive <= 0 ? "-" : Fmt.duration(minutes: minsUntilDrive),
                            tint: Theme.info)
                 extrasTile(icon: "🌅",
                            label: "Fully sober",
-                           value: minsUntilSober <= 0 ? "—" : Fmt.duration(minutes: minsUntilSober),
+                           value: minsUntilSober <= 0 ? "-" : Fmt.duration(minutes: minsUntilSober),
                            tint: Theme.accentDeep)
+            }
+
+            if bac > 0.005 {
+                Text("Estimates only - legal limits vary by location. Never rely solely on this to decide whether to drive.")
+                    .font(.caption2).foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let membership = membership,
@@ -263,32 +266,21 @@ struct NightOutView: View {
                 .buttonStyle(BeerifyPressStyle())
             }
 
-            if shouldEatNudge {
-                nudgeCard(icon: "🍟",
-                          text: "You've had \(session.drinks.count) with no water yet. Grab food + a big water.")
-            }
-
-            if showRideButton {
-                Button {
-                    openRide()
-                } label: {
-                    HStack {
-                        Text("🚕").font(.title2)
-                        VStack(alignment: .leading) {
-                            Text("Call a ride home").font(.headline).foregroundStyle(Theme.ink)
-                            Text("You're past your zone — future-you will thank you.")
-                                .font(.caption).foregroundStyle(Theme.inkSoft)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right").foregroundStyle(Theme.accentDeep)
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 12)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(Theme.danger.opacity(0.15)))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.danger.opacity(0.45), lineWidth: 1))
+            Button {
+                openRide()
+            } label: {
+                HStack {
+                    Text("🚕").font(.title2)
+                    Text("Call a ride home").font(.headline).foregroundStyle(Theme.ink)
+                    Spacer()
+                    Image(systemName: "arrow.up.right").foregroundStyle(Theme.accentDeep)
                 }
-                .buttonStyle(BeerifyPressStyle())
+                .padding(.horizontal, 16).padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Theme.accent.opacity(0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
             }
+            .buttonStyle(BeerifyPressStyle())
         }
     }
 
@@ -302,20 +294,9 @@ struct NightOutView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(tint.opacity(0.4), lineWidth: 1))
     }
 
-    private func nudgeCard(icon: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(icon).font(.title2)
-            Text(text).font(.callout).foregroundStyle(Theme.ink)
-            Spacer(minLength: 0)
-        }
-        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.warning.opacity(0.14)))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.warning.opacity(0.4), lineWidth: 1))
-    }
-
     private var blockedBannerText: String {
         if prefs.ddMode { return "🚗 Designated driver mode is on. Water only tonight." }
-        if prefs.soberMode { return "🌱 Sober mode is on. Water only — you're crushing it." }
+        if prefs.soberMode { return "🌱 Sober mode is on. Water only - you're crushing it." }
         return "Drink logging is paused. You are well past your zone, so it is water only for now. 💧"
     }
 
@@ -339,7 +320,50 @@ struct NightOutView: View {
 
     private func openRide() {
         #if canImport(UIKit)
-        if let url = URL(string: prefs.rideHomeURL) {
+        let webURL = prefs.rideHomeURL
+        let home = prefs.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let encodedHome = home.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let hasHome = !home.isEmpty
+
+        // Build deep link with destination pre-filled
+        let deepLink: String? = {
+            if webURL.contains("uber") {
+                return hasHome
+                    ? "uber://?action=setPickup&dropoff[formatted_address]=\(encodedHome)"
+                    : "uber://"
+            }
+            if webURL.contains("lyft") {
+                return hasHome
+                    ? "lyft://ridetype?id=lyft&destination[address]=\(encodedHome)"
+                    : "lyft://"
+            }
+            if webURL.contains("bolt") {
+                return hasHome
+                    ? "bolt://r/?destination=\(encodedHome)"
+                    : "bolt://"
+            }
+            if webURL.contains("freenow") || webURL.contains("free-now") { return "freenow://" }
+            if webURL.contains("cabify") { return "cabify://" }
+            if webURL.contains("grab") { return "grab://" }
+            if webURL.contains("gett") { return "gett://" }
+            return nil
+        }()
+
+        // Web fallback with destination when possible
+        let webFallback: String = {
+            if hasHome && webURL.contains("uber") {
+                return "https://m.uber.com/ul/?action=setPickup&dropoff[formatted_address]=\(encodedHome)"
+            }
+            return webURL
+        }()
+
+        if let deepLink, let appURL = URL(string: deepLink) {
+            UIApplication.shared.open(appURL) { opened in
+                if !opened, let fallback = URL(string: webFallback) {
+                    UIApplication.shared.open(fallback)
+                }
+            }
+        } else if let url = URL(string: webFallback) {
             UIApplication.shared.open(url)
         }
         #endif
@@ -528,7 +552,18 @@ struct NightOutView: View {
 
     private func hapticHeavy() {
         #if canImport(UIKit) && !os(macOS)
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        let heavy = UIImpactFeedbackGenerator(style: .heavy)
+        let notification = UINotificationFeedbackGenerator()
+        heavy.impactOccurred(intensity: 1.0)
+        notification.notificationOccurred(.success)
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            await MainActor.run { heavy.impactOccurred(intensity: 1.0) }
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            await MainActor.run { heavy.impactOccurred(intensity: 1.0) }
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            await MainActor.run { notification.notificationOccurred(.success) }
+        }
         #endif
     }
 

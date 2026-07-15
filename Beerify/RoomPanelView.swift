@@ -3,7 +3,7 @@
 //  Beerify
 //
 //  Home-screen room panel: create / join / share / squad list.
-//  Backed by a local MultipeerConnectivity mesh — no server required.
+//  Backed by a local MultipeerConnectivity mesh - no server required.
 //
 
 import SwiftUI
@@ -73,7 +73,7 @@ struct RoomPanelView: View {
                 }
 
                 if let msg = displayedError {
-                    Text(msg).font(.caption).foregroundStyle(Theme.danger)
+                    errorCard(msg)
                 }
             }
             .padding(14)
@@ -118,7 +118,7 @@ struct RoomPanelView: View {
                         .font(.caption).foregroundStyle(Theme.inkSoft)
                 }
                 if let msg = displayedError {
-                    Text(msg).font(.caption).foregroundStyle(Theme.danger)
+                    errorCard(msg)
                 }
 
                 Button(role: .destructive) {
@@ -182,5 +182,24 @@ struct RoomPanelView: View {
 
     private var displayedError: String? {
         localError ?? roomService.errorMessage
+    }
+
+    private func errorCard(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message).font(.caption).foregroundStyle(Theme.danger)
+            if message.localizedCaseInsensitiveContains("local network") {
+                Text("Open Settings > Privacy > Local Network and turn on Beerify.")
+                    .font(.caption2).foregroundStyle(Theme.inkSoft)
+            } else if message.localizedCaseInsensitiveContains("discover") || message.localizedCaseInsensitiveContains("network") {
+                Text("Make sure you and your friends are on the same Wi-Fi or close enough for Bluetooth.")
+                    .font(.caption2).foregroundStyle(Theme.inkSoft)
+            }
+            if membership != nil {
+                Button("Retry connection") {
+                    resumeIfNeeded()
+                }
+                .font(.caption).buttonStyle(.bordered).tint(Theme.accent)
+            }
+        }
     }
 }

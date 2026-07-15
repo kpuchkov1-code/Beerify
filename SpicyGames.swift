@@ -5,7 +5,7 @@
 //  Spicier party games: Ranked (the "pick a question, rank the squad, others
 //  guess" format), Would You Rather, Most Likely To, and Two Truths and a Lie.
 //
-//  All are pass-the-phone friendly — no multi-device sync required. Where
+//  All are pass-the-phone friendly - no multi-device sync required. Where
 //  it makes sense they read squad members from the current room.
 //
 
@@ -83,7 +83,7 @@ private struct RankedMultiDevice: View {
                 Text("🌶").font(.title2)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Spiciness: \(store.data.preferences.spiciness)/5").font(.headline).foregroundStyle(Theme.ink)
-                    Text("The round uses your spiciness — everyone will see the same filtered deck.")
+                    Text("The round uses your spiciness - everyone will see the same filtered deck.")
                         .font(.caption).foregroundStyle(Theme.inkSoft).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -98,7 +98,7 @@ private struct RankedMultiDevice: View {
                 workingRanking = []
                 pendingGuess = nil
             } label: {
-                Text("Start round — I'm the picker").frame(maxWidth: .infinity).padding(.vertical, 14)
+                Text("Start round - I'm the picker").frame(maxWidth: .infinity).padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
 
@@ -160,7 +160,7 @@ private struct RankedMultiDevice: View {
     private func pickerShowsAnswer(_ round: RankedRoundState) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your secret question").font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSoft)
-            Text(deck.indices.contains(pickerChoice ?? -1) ? deck[pickerChoice!] : "—")
+            Text(deck.indices.contains(pickerChoice ?? -1) ? deck[pickerChoice!] : "-")
                 .font(.title3.weight(.heavy)).foregroundStyle(Theme.accentDeep)
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accent.opacity(0.2)))
@@ -281,7 +281,7 @@ private struct RankedMultiDevice: View {
         let winners = round.guesses.filter { $0.value == questionIdx }.keys.compactMap { id in members.first(where: { $0.id == id })?.name }
         return VStack(alignment: .leading, spacing: 12) {
             Text("The question was").font(.subheadline).foregroundStyle(Theme.inkSoft)
-            Text(questions.indices.contains(questionIdx) ? questions[questionIdx] : "—")
+            Text(questions.indices.contains(questionIdx) ? questions[questionIdx] : "-")
                 .font(.title2.weight(.heavy)).foregroundStyle(Theme.accentDeep)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -324,7 +324,7 @@ private struct RankedMultiDevice: View {
         let shortlist = round.shortlist ?? []
         return VStack(spacing: 6) {
             ForEach(Array(shortlist.enumerated()), id: \.offset) { pos, deckIdx in
-                let q = deck.indices.contains(deckIdx) ? deck[deckIdx] : "—"
+                let q = deck.indices.contains(deckIdx) ? deck[deckIdx] : "-"
                 let selected = selectedIdx == deckIdx
                 Button {
                     onTap(deckIdx)
@@ -434,7 +434,7 @@ private struct RankedPassAround: View {
     /// one at random and ranks the squad by it; the other players see only
     /// a shortlist of 10 to guess from.
     static let deck: [SpicyPrompt] = [
-        // Level 2 — silly / general
+        // Level 2 - silly / general
         .init(text: "Most to least likely to live the longest", level: 2),
         .init(text: "Most to least likely to give themselves food poisoning", level: 2),
         .init(text: "Most to least likely to crash a car", level: 2),
@@ -453,7 +453,7 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to leave uni", level: 2),
         .init(text: "Most to least likely to turn to YouTube/TikTok/being an influencer for money", level: 2),
         .init(text: "Most to least likely to die alone surrounded by their 10 dogs/cats/whatever", level: 2),
-        .init(text: "You get to choose one of us to be your sibling — what order are you picking us in?", level: 2),
+        .init(text: "You get to choose one of us to be your sibling - what order are you picking us in?", level: 2),
         .init(text: "Best to worst chef", level: 2),
         .init(text: "Best to worst at parenting (if they had a kid)", level: 2),
         .init(text: "Poshest to least posh voice", level: 2),
@@ -502,7 +502,7 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to ask stupid questions", level: 2),
         .init(text: "Most to least likely to do something cringey/embarrassing tonight", level: 2),
         .init(text: "Most to least likely to call it an early night", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "Most to least likely to get in a fight", level: 3),
         .init(text: "Most to least likely to get stood up", level: 3),
         .init(text: "Most to least likely to remain single forever", level: 3),
@@ -549,7 +549,7 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to end up in rehab", level: 3),
         .init(text: "Most to least likely to say something offensive", level: 3),
         .init(text: "Most to least likely to stand someone up/ditch mid date", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(text: "Most to least likely to cheat", level: 4),
         .init(text: "Most to least likely to get with someone of the same sex", level: 4),
         .init(text: "Most to least likely to date 2 people at once", level: 4),
@@ -558,7 +558,7 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to get with a teacher/professor", level: 4),
         .init(text: "Most to least likely to run over a kid (and maybe drive off)", level: 4),
         .init(text: "Most to least likely to become a sugar daddy/mummy when you're old and rich", level: 4),
-        .init(text: "Who you think is gonna get pregnant/get a girl pregnant first — and they keep it", level: 4),
+        .init(text: "Who you think is gonna get pregnant/get a girl pregnant first - and they keep it", level: 4),
         .init(text: "Most to least likely to send a sext to the wrong person", level: 4),
         .init(text: "Most to least likely to become a drug lord", level: 4),
         .init(text: "Most to least likely to be a MILF/DILF", level: 4),
@@ -587,7 +587,7 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to be in a forever-long situationship", level: 4),
         .init(text: "Most to least likely to end up in a toxic relationship", level: 4),
         .init(text: "Most to least likely to say 'I love you' and not mean it", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(text: "Most to least likely to be the loudest during sex", level: 5),
         .init(text: "Most to least vanilla", level: 5),
         .init(text: "Most to least likely to enjoy anal", level: 5),
@@ -636,6 +636,37 @@ private struct RankedPassAround: View {
         .init(text: "Most to least likely to get caught masturbating", level: 5),
         .init(text: "Most to least likely to get their nudes leaked", level: 5),
         .init(text: "Most to least likely to become a pornstar", level: 5),
+        // Level 5 - truly unhinged
+        .init(text: "Rank everyone by who you'd trust least to hold your unlocked phone for 5 minutes", level: 5),
+        .init(text: "If everyone here was on trial for murder, rank who the jury would convict fastest", level: 5),
+        .init(text: "Most to least likely to secretly hate someone in this room", level: 5),
+        .init(text: "If someone here had to disappear and start a new life, who'd survive the longest?", level: 5),
+        .init(text: "Most to least likely to sell out the group for money - and what's your price?", level: 5),
+        .init(text: "Rank everyone by who you think is secretly the most fucked up", level: 5),
+        .init(text: "Who here has the darkest browser history? Rank them.", level: 5),
+        .init(text: "Most to least likely to have done something that would end their career if it came out", level: 5),
+        .init(text: "If one person here was an undercover cop, who would nobody suspect?", level: 5),
+        .init(text: "Rank everyone by who would crack first under interrogation", level: 5),
+        .init(text: "Most to least likely to ghost their own wedding", level: 5),
+        .init(text: "Who would be the scariest person in this room if they had nothing to lose?", level: 5),
+        .init(text: "Rank who you'd want least as the last person you see alive", level: 5),
+        .init(text: "Most to least likely to already be keeping a secret from someone in this room right now", level: 5),
+        .init(text: "If everyone here was in a cult, rank who'd be the leader and who'd drink the Kool-Aid", level: 5),
+        .init(text: "Most to least likely to have lied about something serious tonight", level: 5),
+        .init(text: "Rank everyone by how quickly they'd betray a partner for the right offer", level: 5),
+        .init(text: "If one of us was going to ruin their life in the next year, who would it be?", level: 5),
+        .init(text: "Who here do you think has genuinely hurt someone and never apologised?", level: 5),
+        .init(text: "Most to least likely to be living a complete lie right now", level: 5),
+        .init(text: "If we all got arrested tonight, rank who'd snitch first", level: 5),
+        .init(text: "Most to least likely to have a second phone nobody knows about", level: 5),
+        .init(text: "Who here would you not trust alone with your partner? Rank honestly.", level: 5),
+        .init(text: "If the group had to sacrifice one person to save the rest, rank the order", level: 5),
+        .init(text: "Most to least likely to be completely different when nobody from this group is around", level: 5),
+        .init(text: "Rank everyone by who fakes their personality the most in this group", level: 5),
+        .init(text: "Most to least likely to have fantasised about someone else's partner in this room", level: 5),
+        .init(text: "Who here do you genuinely think will peak in life the earliest?", level: 5),
+        .init(text: "If everyone's deepest secret got exposed tonight, whose would shock the room most?", level: 5),
+        .init(text: "Most to least likely to have slept with someone in this room and hidden it from the group", level: 5),
     ]
 
     private var deckFiltered: [String] { Self.deck.upTo(store.data.preferences.spiciness) }
@@ -697,7 +728,7 @@ private struct RankedPassAround: View {
             Button {
                 phase = .secret
             } label: {
-                Text("Start — pass to the picker").frame(maxWidth: .infinity).padding(.vertical, 14)
+                Text("Start - pass to the picker").frame(maxWidth: .infinity).padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
             .disabled(players.count < 3)
@@ -716,7 +747,7 @@ private struct RankedPassAround: View {
             Text("🤫").font(.system(size: 72))
             Text("Only the picker looks now.")
                 .font(.title3.weight(.bold)).foregroundStyle(Theme.ink)
-            Text("Everyone else — look away. The picker draws one random question that only they'll see.")
+            Text("Everyone else - look away. The picker draws one random question that only they'll see.")
                 .foregroundStyle(Theme.inkSoft).multilineTextAlignment(.center)
             Button {
                 phase = .pick
@@ -870,7 +901,7 @@ private struct RankedPassAround: View {
                     revealed = false
                     guessIdx = nil
                 } label: {
-                    Text("Done — pass to the squad").frame(maxWidth: .infinity).padding(.vertical, 14)
+                    Text("Done - pass to the squad").frame(maxWidth: .infinity).padding(.vertical, 14)
                 }
                 .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
             }
@@ -905,7 +936,7 @@ private struct RankedPassAround: View {
 
             VStack(spacing: 6) {
                 ForEach(Array(shortlist.enumerated()), id: \.offset) { pos, deckIdx in
-                    let q = deckFiltered.indices.contains(deckIdx) ? deckFiltered[deckIdx] : "—"
+                    let q = deckFiltered.indices.contains(deckIdx) ? deckFiltered[deckIdx] : "-"
                     let isTruth = revealed && deckIdx == questionIdx
                     let isGuess = guessIdx == deckIdx
                     let tint: Color = {
@@ -1004,7 +1035,7 @@ struct WouldYouRatherGame: View {
     @Environment(AppStore.self) private var store
 
     private static let deck: [WYRPair] = [
-        // Level 1 — family-safe
+        // Level 1 - family-safe
         .init(a: "Never drink coffee again", b: "Never drink alcohol again", level: 1),
         .init(a: "Live without music", b: "Live without any streaming shows", level: 1),
         .init(a: "Have someone else pick your outfits for life", b: "Have someone else pick your car for life", level: 1),
@@ -1013,7 +1044,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Live without pizza forever", b: "Live without dessert forever", level: 1),
         .init(a: "Have unlimited money for travel", b: "Have unlimited free time", level: 1),
         .init(a: "Live in a beach town", b: "Live in a big city", level: 1),
-        // Level 2 — mild
+        // Level 2 - mild
         .init(a: "Have your search history public", b: "Have your camera roll public", level: 2),
         .init(a: "Sing karaoke sober in front of your parents", b: "Give a wedding speech drunk", level: 2),
         .init(a: "Marry for money", b: "Marry for love and be broke forever", level: 2),
@@ -1024,7 +1055,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Say what you really think of each friend once", b: "Hear what they really think of you once", level: 2),
         .init(a: "Only wear formalwear forever", b: "Only wear pajamas forever", level: 2),
         .init(a: "Have your Spotify Wrapped be brutally honest", b: "Have your Instagram DMs read aloud", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(a: "Read your ex's diary", b: "Have your ex read yours", level: 3),
         .init(a: "Have your worst secret revealed", b: "Reveal someone else's worst secret", level: 3),
         .init(a: "Be honest with everyone forever", b: "Only ever lie for the rest of your life", level: 3),
@@ -1034,7 +1065,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Have your first date be brutally honest", b: "Only ever lie on first dates", level: 3),
         .init(a: "Get back with your worst ex for a week", b: "Never speak to your best friend for a year", level: 3),
         .init(a: "Have your parents unlock your phone once", b: "Have your ex unlock it once", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(a: "Kiss the last person you texted", b: "Kiss your boss", level: 4),
         .init(a: "Be great in bed and terrible in conversation", b: "Be great in conversation and terrible in bed", level: 4),
         .init(a: "Be caught cheating", b: "Catch a partner cheating", level: 4),
@@ -1045,9 +1076,9 @@ struct WouldYouRatherGame: View {
         .init(a: "Have your parents watch your first hookup", b: "Watch your parents' first hookup", level: 4),
         .init(a: "Know exactly when your partner cheated", b: "Never know if they did", level: 4),
         .init(a: "Be your ex's best friend forever", b: "Never see your best friend again", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(a: "Have a threesome with two strangers", b: "Have a threesome with two friends", level: 5),
-        .init(a: "Amazing sex with someone you'll never love", b: "Terrible sex with your soulmate — forever", level: 5),
+        .init(a: "Amazing sex with someone you'll never love", b: "Terrible sex with your soulmate - forever", level: 5),
         .init(a: "Sleep with someone in this room tonight", b: "Never have sex again", level: 5),
         .init(a: "Only ever be a top", b: "Only ever be a bottom", level: 5),
         .init(a: "Have your search history projected at your funeral", b: "Have your camera roll shown at your wedding", level: 5),
@@ -1055,9 +1086,9 @@ struct WouldYouRatherGame: View {
         .init(a: "Have every hookup rated publicly", b: "Rate every hookup you've had publicly", level: 5),
         .init(a: "Never finish again", b: "Only finish when someone's watching", level: 5),
         .init(a: "Have your body count doubled and made public", b: "Halved and told to your mum", level: 5),
-        .init(a: "Sleep with your best friend once — no aftermath", b: "Sleep with their partner once — you know", level: 5),
+        .init(a: "Sleep with your best friend once - no aftermath", b: "Sleep with their partner once - you know", level: 5),
         .init(a: "Have your ex live next door", b: "Have your ex be your new boss", level: 5),
-        .init(a: "Only have loud sex — always", b: "Only have silent sex — always", level: 5),
+        .init(a: "Only have loud sex - always", b: "Only have silent sex - always", level: 5),
         .init(a: "Have your last text to your crush read aloud here", b: "Have your Google search history from tonight projected", level: 5),
         .init(a: "Get with someone in this room", b: "Lose one friendship of the group's choosing", level: 5),
         .init(a: "Have your dating app profile edited by your enemies", b: "By your ex", level: 5),
@@ -1066,7 +1097,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Send a booty call to the wrong number", b: "Send a serious 'we need to talk' to your crush right now", level: 5),
         .init(a: "Confess your worst hookup to the room", b: "Have the room guess it", level: 5),
         .init(a: "Kiss the person on your left", b: "Kiss the person on your right", level: 5),
-        // Bonus L1 — silly
+        // Bonus L1 - silly
         .init(a: "Have hands the size of dinner plates", b: "Have feet the size of skis", level: 1),
         .init(a: "Fight one horse-sized duck", b: "Fight 100 duck-sized horses", level: 1),
         .init(a: "Never sneeze again", b: "Never yawn again", level: 1),
@@ -1085,7 +1116,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Always be too hot", b: "Always be too cold", level: 1),
         .init(a: "Sleep 3 hours a night forever", b: "Sleep 14 hours a night forever", level: 1),
         .init(a: "Have a photographic memory", b: "Be able to read minds for one minute a day", level: 1),
-        // Bonus L2 — light
+        // Bonus L2 - light
         .init(a: "Never watch TV again", b: "Never listen to music again", level: 2),
         .init(a: "Never scroll socials again", b: "Never watch a new movie again", level: 2),
         .init(a: "Only wear neon", b: "Only wear beige", level: 2),
@@ -1101,7 +1132,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Have a really annoying laugh", b: "Have a really annoying voice", level: 2),
         .init(a: "Have to sing everything you say", b: "Have to dance every 10 minutes", level: 2),
         .init(a: "Wear the same outfit every day", b: "Wear a costume every day", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(a: "Have your teenage diaries read live on radio", b: "Have your Notes app read to your parents", level: 3),
         .init(a: "See every text your ex sent you again", b: "Delete your camera roll forever", level: 3),
         .init(a: "Give a wedding speech that goes viral for the wrong reasons", b: "Post a story you can't delete for a week", level: 3),
@@ -1117,7 +1148,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Marry someone rich but boring", b: "Marry someone poor and hilarious", level: 3),
         .init(a: "Live with your parents at 40", b: "Live with your ex at 40", level: 3),
         .init(a: "Have every ex meet each other", b: "Have every ex meet your parents", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(a: "Have your camera roll shown at a job interview", b: "Have your search history shown to your family", level: 4),
         .init(a: "Send a booty call to your boss", b: "Send a formal work email to your last hookup", level: 4),
         .init(a: "Get caught mid-hookup by a housemate", b: "Get caught mid-hookup by their parents", level: 4),
@@ -1133,7 +1164,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Only date people 10 years older", b: "Only date people 10 years younger", level: 4),
         .init(a: "Have your ex be the officiant at your wedding", b: "Have your worst boss be the officiant", level: 4),
         .init(a: "Text your last crush 'thinking of you'", b: "Text your last hookup the same", level: 4),
-        // Bonus L5 — unfiltered
+        // Bonus L5 - unfiltered
         .init(a: "Have all your fantasies shown as a slideshow to the group", b: "Have your entire hookup history shown", level: 5),
         .init(a: "Only have sex sober forever", b: "Only have sex drunk forever", level: 5),
         .init(a: "Never receive again", b: "Never give again", level: 5),
@@ -1147,7 +1178,7 @@ struct WouldYouRatherGame: View {
         .init(a: "Discover your partner has a secret family", b: "Be the secret family", level: 5),
         .init(a: "Have your last hookup show up to your funeral", b: "Show up to your last hookup's funeral", level: 5),
         .init(a: "Get with your enemy tonight", b: "Get with a family friend tonight", level: 5),
-        .init(a: "Have every kink you have go public", b: "Have every fantasy of yours acted out — live", level: 5),
+        .init(a: "Have every kink you have go public", b: "Have every fantasy of yours acted out - live", level: 5),
         .init(a: "Only ever do it with the lights on", b: "Only ever do it in total silence", level: 5),
         .init(a: "Be the loudest person in bed", b: "Be the quietest", level: 5),
         .init(a: "Have your longest situationship come to your wedding", b: "Skip your wedding to hook up with them", level: 5),
@@ -1159,6 +1190,21 @@ struct WouldYouRatherGame: View {
         .init(a: "Kiss your friend's ex", b: "Kiss your ex's friend", level: 5),
         .init(a: "Send a spicy text to the wrong sibling", b: "Get one from the wrong sibling", level: 5),
         .init(a: "Try every kink once", b: "Never try anything new again", level: 5),
+        // Bonus L5 - psychological warfare
+        .init(a: "Know every lie your friends have told you", b: "Know every lie your partner has told you", level: 5),
+        .init(a: "Have everyone know your worst intrusive thought", b: "Have your worst intrusive thought come true once", level: 5),
+        .init(a: "Relive your most embarrassing moment every morning for a year", b: "Have it posted online for everyone to see once", level: 5),
+        .init(a: "Know exactly what everyone thinks of you", b: "Never know but always wonder", level: 5),
+        .init(a: "Have your entire inner monologue broadcast to this room for 24 hours", b: "Read theirs for 24 hours", level: 5),
+        .init(a: "Lose all your memories of your best friend", b: "Lose all your memories of every relationship", level: 5),
+        .init(a: "Know when you'll die", b: "Know how you'll die", level: 5),
+        .init(a: "Be feared by everyone but loved by nobody", b: "Be loved by everyone but respected by nobody", level: 5),
+        .init(a: "Have your group chat leaked to the public", b: "Have your search history leaked to the group chat", level: 5),
+        .init(a: "Be stuck in your worst year forever", b: "Skip your best year entirely", level: 5),
+        .init(a: "Know your partner settled for you", b: "Know your friends only tolerate you", level: 5),
+        .init(a: "Have every thought you've had about someone in this room said out loud right now", b: "Have every thought they've had about you said out loud", level: 5),
+        .init(a: "Forget your happiest memory permanently", b: "Relive your saddest one every night before sleep", level: 5),
+        .init(a: "Find out your entire friend group has a second chat without you", b: "Find out your partner has a second phone", level: 5),
     ]
 
     @State private var queue: [WYRPair] = []
@@ -1230,7 +1276,7 @@ struct MostLikelyToGame: View {
     @State private var revealed: Bool = false
 
     static let deck: [SpicyPrompt] = [
-        // Level 1 — family-safe
+        // Level 1 - family-safe
         .init(text: "…win the lottery and spend it all in a month.", level: 1),
         .init(text: "…be first to have a kid.", level: 1),
         .init(text: "…start a podcast nobody listens to.", level: 1),
@@ -1241,7 +1287,7 @@ struct MostLikelyToGame: View {
         .init(text: "…adopt seven cats and one goat.", level: 1),
         .init(text: "…become a viral TikTok chef.", level: 1),
         .init(text: "…quit their job to become a beekeeper.", level: 1),
-        // Level 2 — mild party
+        // Level 2 - mild party
         .init(text: "…get a face tattoo on a dare.", level: 2),
         .init(text: "…crash a wedding.", level: 2),
         .init(text: "…sing at a stranger's wedding.", level: 2),
@@ -1254,7 +1300,7 @@ struct MostLikelyToGame: View {
         .init(text: "…be the last one still partying.", level: 2),
         .init(text: "…lose their phone before midnight.", level: 2),
         .init(text: "…fall asleep at the pregame.", level: 2),
-        // Level 3 — medium
+        // Level 3 - medium
         .init(text: "…get arrested this year.", level: 3),
         .init(text: "…date a coworker.", level: 3),
         .init(text: "…be canceled and deserve it.", level: 3),
@@ -1266,7 +1312,7 @@ struct MostLikelyToGame: View {
         .init(text: "…get back with their worst ex.", level: 3),
         .init(text: "…post something they'll delete in the morning.", level: 3),
         .init(text: "…lie about their job on a first date.", level: 3),
-        // Level 4 — spicy
+        // Level 4 - spicy
         .init(text: "…hook up in an Uber.", level: 4),
         .init(text: "…get with a coworker at the Christmas party.", level: 4),
         .init(text: "…lie about their number to a new partner.", level: 4),
@@ -1278,7 +1324,7 @@ struct MostLikelyToGame: View {
         .init(text: "…break up with someone by text.", level: 4),
         .init(text: "…have a crush on someone in this room.", level: 4),
         .init(text: "…have a folder in their phone they'd delete before dying.", level: 4),
-        // Level 5 — unfiltered adult chaos
+        // Level 5 - unfiltered adult chaos
         .init(text: "…hook up with someone in this room tonight.", level: 5),
         .init(text: "…be down for a threesome if we offered right now.", level: 5),
         .init(text: "…have a body count in triple digits.", level: 5),
@@ -1304,7 +1350,23 @@ struct MostLikelyToGame: View {
         .init(text: "…have gotten with someone in this room's friend group without them knowing.", level: 5),
         .init(text: "…be secretly in love with someone in this room.", level: 5),
         .init(text: "…lie about being on birth control or wearing protection.", level: 5),
-        // Bonus L1 — silly
+        // Bonus L5 - beyond hookups
+        .init(text: "…be talking shit about someone in this room right now in another group chat.", level: 5),
+        .init(text: "…betray the group for enough money.", level: 5),
+        .init(text: "…be secretly relieved if someone in this group moved away.", level: 5),
+        .init(text: "…have a completely different personality when none of us are around.", level: 5),
+        .init(text: "…be the person everyone in this room has privately complained about.", level: 5),
+        .init(text: "…have already peaked and not know it yet.", level: 5),
+        .init(text: "…snap under pressure and burn every bridge they have.", level: 5),
+        .init(text: "…end up genuinely alone by 40.", level: 5),
+        .init(text: "…be secretly miserable right now but hiding it from all of us.", level: 5),
+        .init(text: "…do something tonight they'll deny happened by tomorrow.", level: 5),
+        .init(text: "…have a secret that would genuinely end a friendship in this room.", level: 5),
+        .init(text: "…be living an entirely different life than what they project on social media.", level: 5),
+        .init(text: "…crack first if we all went through each other's phones right now.", level: 5),
+        .init(text: "…have genuinely considered cutting someone in this room out of their life.", level: 5),
+        .init(text: "…be in this friend group out of convenience, not genuine love.", level: 5),
+        // Bonus L1 - silly
         .init(text: "…save the world with a spreadsheet.", level: 1),
         .init(text: "…become a cottagecore homesteader.", level: 1),
         .init(text: "…marry their yoga instructor.", level: 1),
@@ -1315,7 +1377,7 @@ struct MostLikelyToGame: View {
         .init(text: "…adopt a rescue donkey.", level: 1),
         .init(text: "…win a pie-eating contest.", level: 1),
         .init(text: "…host a wholesome family podcast.", level: 1),
-        // Bonus L2 — mild
+        // Bonus L2 - mild
         .init(text: "…get catfished.", level: 2),
         .init(text: "…get scammed by a Nigerian prince email.", level: 2),
         .init(text: "…start crying in the middle of Ikea.", level: 2),
@@ -1332,7 +1394,7 @@ struct MostLikelyToGame: View {
         .init(text: "…leave a party without saying goodbye.", level: 2),
         .init(text: "…set an alarm they'll ignore anyway.", level: 2),
         .init(text: "…binge a series in one weekend.", level: 2),
-        // Bonus L3 — medium
+        // Bonus L3 - medium
         .init(text: "…get in a passive-aggressive email war.", level: 3),
         .init(text: "…delete their socials in a fit of drama.", level: 3),
         .init(text: "…get roasted by a taxi driver.", level: 3),
@@ -1348,7 +1410,7 @@ struct MostLikelyToGame: View {
         .init(text: "…develop feelings for a coworker they don't even like.", level: 3),
         .init(text: "…be the reason a group chat exists to talk about them.", level: 3),
         .init(text: "…flirt with someone entirely out of habit.", level: 3),
-        // Bonus L4 — spicy
+        // Bonus L4 - spicy
         .init(text: "…kiss a stranger for a free drink.", level: 4),
         .init(text: "…date someone specifically to make an ex jealous.", level: 4),
         .init(text: "…keep an ex's hoodie for over a year.", level: 4),
@@ -1366,7 +1428,7 @@ struct MostLikelyToGame: View {
         .init(text: "…swap partners with a sibling's ex for chaos.", level: 4),
         .init(text: "…have a favorite person's number saved under a fake name.", level: 4),
         .init(text: "…miss a whole day of work because of a hookup.", level: 4),
-        // Bonus L5 — unfiltered adult
+        // Bonus L5 - unfiltered adult
         .init(text: "…film a hookup 'by accident'.", level: 5),
         .init(text: "…sleep with a boss for a promotion.", level: 5),
         .init(text: "…join a sex club just to see what it's like.", level: 5),
@@ -1473,7 +1535,7 @@ struct MostLikelyToGame: View {
             }
 
             if revealed, let top = votes.max(by: { $0.value < $1.value }) {
-                Text("🏆 \(top.key) — take a drink!")
+                Text("🏆 \(top.key) - take a drink!")
                     .font(.headline).foregroundStyle(Theme.accentDeep)
             }
 
@@ -1548,7 +1610,7 @@ struct TwoTruthsAndALieGame: View {
                 _ = items
                 phase = .guess
             } label: {
-                Text("Ready — pass it").frame(maxWidth: .infinity).padding(.vertical, 12)
+                Text("Ready - pass it").frame(maxWidth: .infinity).padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
             .disabled(truth1.isEmpty || truth2.isEmpty || lie.isEmpty)

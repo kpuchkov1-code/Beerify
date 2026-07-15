@@ -4,7 +4,7 @@
 //
 //  Single source of truth for the app. Mirrors the web app's AppData shape
 //  (profile / active session / history / room). Persists via UserDefaults
-//  as JSON — same pattern as localStorage on web.
+//  as JSON - same pattern as localStorage on web.
 //
 
 import Foundation
@@ -45,6 +45,13 @@ final class AppStore {
 
     func setProfile(_ profile: Profile) {
         data.profile = profile
+        save()
+    }
+
+    func updateProfile(_ mutate: (inout Profile) -> Void) {
+        guard var p = data.profile else { return }
+        mutate(&p)
+        data.profile = p
         save()
     }
 

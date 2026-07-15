@@ -3,7 +3,7 @@
 //  Beerify
 //
 //  Widmark-based BAC estimation with gradual per-drink absorption.
-//  Ported from beerify/src/lib/bac.ts — the two implementations should
+//  Ported from beerify/src/lib/bac.ts - the two implementations should
 //  produce numerically identical curves.
 //
 
