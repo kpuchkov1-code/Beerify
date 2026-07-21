@@ -7,7 +7,7 @@ import { calculateStats } from './stats'
 const profile: Profile = { id: 'p', name: 'Sam', weightKg: 75, sex: 'male', drinkerLevel: 'weekend', createdAt: 1, updatedAt: 1 }
 
 function night(overrides: Partial<NightSession> = {}): NightSession {
-  return { id: 'n', startedAt: 1_700_000_000_000, updatedAt: 1_700_003_600_000, endedAt: 1_700_003_600_000, targetId: 'glow', mealState: 'unknown', participationMode: 'drinking', drinks: [], waters: [], ...overrides }
+  return { id: 'n', startedAt: 1_700_000_000_000, updatedAt: 1_700_003_600_000, endedAt: 1_700_003_600_000, targetId: 'glow', mealState: 'unknown', participationMode: 'drinking', nightMode: 'solo', drinks: [], waters: [], pubCrawl: [], ...overrides }
 }
 
 test('derives all badge state from history', () => {

@@ -1,6 +1,7 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import type { AppData, NightSession } from '../types'
 import { apiUrl, isNative } from './platform'
+import { normalizeData } from './storage'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined
@@ -54,11 +55,15 @@ export function mergeCloudData(local: AppData, cloud: Partial<AppData> | null): 
   const session = !cloud.session || (local.session?.updatedAt ?? 0) >= cloud.session.updatedAt
     ? local.session
     : cloud.session
+  const pubCrawlDraft = !cloud.pubCrawlDraft || (local.pubCrawlDraft?.updatedAt ?? 0) >= cloud.pubCrawlDraft.updatedAt
+    ? local.pubCrawlDraft
+    : cloud.pubCrawlDraft
   return {
     ...local,
     profile,
     preferences,
     session,
+    pubCrawlDraft,
     history: mergeSessions(local.history, cloud.history ?? []),
     room: local.room,
   }
@@ -70,8 +75,9 @@ export async function syncAccountData(local: AppData): Promise<AppData> {
   if (!db || !session) return local
   const { data, error } = await db.from('user_data').select('payload').eq('user_id', session.user.id).maybeSingle()
   if (error) throw error
-  const merged = mergeCloudData(local, data?.payload as Partial<AppData> | null)
-  const payload = { profile: merged.profile, preferences: merged.preferences, session: merged.session, history: merged.history }
+  const cloud = data?.payload ? normalizeData(data.payload) : null
+  const merged = mergeCloudData(local, cloud)
+  const payload = { profile: merged.profile, preferences: merged.preferences, session: merged.session, pubCrawlDraft: merged.pubCrawlDraft, history: merged.history }
   const { error: saveError } = await db.from('user_data').upsert({ user_id: session.user.id, payload, updated_at: new Date().toISOString() })
   if (saveError) throw saveError
   return merged

@@ -23,9 +23,10 @@ interface Props {
   onEndNight: (room?: RoomState | null) => void
   onToggleFavorite: (presetId: string) => void
   onSavePreset: (preset: DrinkPreset) => void
+  onOpenCrew: () => void
 }
 
-export default function NightOut({ session, profile, preferences, membership, onLogDrink, onLogWater, onUndo, onUpdateDrink, onEndNight, onToggleFavorite }: Props) {
+export default function NightOut({ session, profile, preferences, membership, onLogDrink, onLogWater, onUndo, onUpdateDrink, onEndNight, onToggleFavorite, onOpenCrew }: Props) {
   const [now, setNow] = useState(() => Date.now())
   const [drinkType, setDrinkType] = useState<DrinkPreset | null>(null)
   const [burst, setBurst] = useState<string | null>(null)
@@ -126,7 +127,7 @@ export default function NightOut({ session, profile, preferences, membership, on
   return (
     <main className={`screen night night--${status} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.bigThumbMode ? 'big-thumb-mode' : ''}`}>
       <header className="night-bar">
-        <div><span>{displayTarget}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
+        <div><span>{displayTarget} · {session.nightMode === 'group' ? 'Group' : 'Solo'}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
         <div className="night-bar__bac"><span>LIKELY</span><strong>{bac.toFixed(3).replace(/^0/, '')}</strong></div>
         <button className="icon-btn icon-btn--light" aria-label="End the night" onClick={() => endDialog.current?.showModal()}>×</button>
       </header>
@@ -142,6 +143,8 @@ export default function NightOut({ session, profile, preferences, membership, on
         </div>
         {rideUrl && <a className="ride-home-link" href={rideUrl} target="_blank" rel="noreferrer">Get a ride home <span>↗</span></a>}
       </section>
+
+      {session.nightMode === 'group' && !membership && <section className="group-reconnect"><div><strong>Group connection lost</strong><small>Your night is still in Group mode. Rejoin once to resume shared drinks, games and crawl.</small></div><button className="btn btn--secondary" onClick={onOpenCrew}>Reconnect</button></section>}
 
       {membership && room && (
         <section className="night-crew-strip">

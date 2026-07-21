@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
-import type { AppData, DrinkPreset, LoggedDrink, MealState, NightSession, ParticipationMode, Profile, RoomMembership, RoomState, TargetId } from './types'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import type { AppData, DrinkPreset, LoggedDrink, MealState, NightMode, NightSession, ParticipationMode, Profile, PubCrawlStop, RoomMembership, RoomState, TargetId } from './types'
 import { logFromPreset, presetById, TARGETS } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
-import { registerRoomPush, trackMetric } from './lib/room'
+import { leaveRoom as disconnectRoom, registerRoomPush, setRoomCrawl, trackMetric } from './lib/room'
 import { apnsEnvironment, getPushState, reportPushRegistrationError, subscribePushState } from './lib/notifications'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
@@ -30,7 +30,7 @@ export default function App() {
   const [data, setData] = useState<AppData>(loadData)
   const [viewingSummary, setViewingSummary] = useState<NightSession | null>(null)
   const invitedCode = INITIAL_ROOM_CODE
-  const [tab, setTab] = useState<AppTab>(invitedCode ? 'crew' : 'tonight')
+  const [tab, setTab] = useState<AppTab>('tonight')
   const screenKey = !data.profile ? 'setup' : !data.profile.legalAgeConfirmedAt ? 'age' : viewingSummary?.id ?? (data.session ? `night-${tab}` : tab)
 
   useEffect(() => saveData(data), [data])
@@ -41,6 +41,17 @@ export default function App() {
 
   useEffect(() => {
     if (OPENED_INVITE) trackMetric('invite_opened')
+  }, [])
+
+  useEffect(() => {
+    const clearRejectedRoom = (event: Event) => {
+      const detail = (event as CustomEvent<{ code?: string; memberId?: string }>).detail
+      setData((current) => current.room && (!detail?.code || current.room.code === detail.code) && (!detail?.memberId || current.room.memberId === detail.memberId)
+        ? { ...current, room: null }
+        : current)
+    }
+    window.addEventListener('beerify:room-invalid', clearRejectedRoom)
+    return () => window.removeEventListener('beerify:room-invalid', clearRejectedRoom)
   }, [])
 
   useEffect(() => {
@@ -98,13 +109,24 @@ export default function App() {
     setData((current) => ({ ...current, profile: { ...profile, updatedAt: Date.now() } }))
   }
 
-  function startNight(targetId: TargetId, mealState: MealState, participationMode: ParticipationMode) {
+  async function startNight(targetId: TargetId, mealState: MealState, participationMode: ParticipationMode, nightMode: NightMode) {
     const now = Date.now()
     const target = TARGETS[targetId]
+    if (nightMode === 'group' && !data.room) return
+    if (nightMode === 'solo' && data.room) void disconnectRoom(data.room).catch(() => {})
+    const draftStops = data.pubCrawlDraft?.stops ?? []
+    let initialCrawl = nightMode === 'solo' ? draftStops : []
+    const hostImportsDraft = nightMode === 'group' && data.room?.isHost && draftStops.length > 0
+    if (hostImportsDraft && data.room) {
+      const room = await setRoomCrawl(data.room, draftStops)
+      initialCrawl = room.crawl
+    }
     setTab('tonight')
     setData((current) => ({
       ...current,
-      session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, participationMode, drinks: [], waters: [] },
+      room: nightMode === 'group' ? current.room : null,
+      pubCrawlDraft: nightMode === 'solo' || hostImportsDraft ? null : current.pubCrawlDraft,
+      session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, participationMode, nightMode, roomCode: nightMode === 'group' ? current.room?.code : undefined, drinks: [], waters: [], pubCrawl: initialCrawl },
       preferences: { ...current.preferences, lastTargetId: targetId, lastParticipationMode: participationMode, updatedAt: now },
     }))
   }
@@ -159,6 +181,7 @@ export default function App() {
   }
 
   function endNight(room?: RoomState | null) {
+    if (data.room) void disconnectRoom(data.room).catch(() => {})
     setData((current) => {
       if (!current.session) return current
       const now = Date.now()
@@ -172,20 +195,42 @@ export default function App() {
         endedAt: now,
         updatedAt: now,
       }
-      return { ...current, session: null, history: [...current.history, ended] }
+      return { ...current, room: null, session: null, history: [...current.history, ended] }
     })
     setTab('history')
   }
 
   function joinRoom(room: RoomMembership) {
-    setData((current) => ({ ...current, room }))
-    setTab('tonight')
+    setData((current) => ({
+      ...current,
+      room,
+      session: current.session?.nightMode === 'group' ? { ...current.session, roomCode: room.code, updatedAt: Date.now() } : current.session,
+    }))
   }
 
-  function leaveRoom() {
+  function clearRoom() {
     setData((current) => ({ ...current, room: null }))
     if (data.session) setTab('tonight')
   }
+
+  function discardRoom() {
+    if (data.room) void disconnectRoom(data.room).catch(() => {})
+    clearRoom()
+  }
+
+  const updateCrawl = useCallback((pubCrawl: PubCrawlStop[]) => {
+    setData((current) => current.session ? {
+      ...current,
+      session: { ...current.session, pubCrawl, updatedAt: Date.now() },
+    } : current)
+  }, [])
+
+  const updateDraftCrawl = useCallback((stops: PubCrawlStop[]) => {
+    setData((current) => ({
+      ...current,
+      pubCrawlDraft: stops.length ? { stops, updatedAt: Date.now() } : null,
+    }))
+  }, [])
 
   function updatePreset(preset: DrinkPreset) {
     setData((current) => {
@@ -230,16 +275,17 @@ export default function App() {
     return <Suspense fallback={<main className="screen"><p className="empty-copy">Opening your recap…</p></main>}><Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} /></Suspense>
   }
 
+  const activeMembership = data.session?.nightMode === 'group' ? data.room : null
   const content = tab === 'tonight'
     ? data.session
-      ? <NightOut session={data.session} profile={data.profile} preferences={data.preferences} membership={data.room} onLogDrink={logDrink} onLogWater={logWater} onUndo={undoDrink} onUpdateDrink={updateDrink} onEndNight={endNight} onToggleFavorite={toggleFavorite} onSavePreset={updatePreset} />
-      : <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
+      ? <NightOut session={data.session} profile={data.profile} preferences={data.preferences} membership={activeMembership} onLogDrink={logDrink} onLogWater={logWater} onUndo={undoDrink} onUpdateDrink={updateDrink} onEndNight={endNight} onToggleFavorite={toggleFavorite} onSavePreset={updatePreset} onOpenCrew={() => setTab('crew')} />
+      : <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} plannedStops={data.pubCrawlDraft?.stops.length ?? 0} initialCode={invitedCode} onStartNight={startNight} onOpenSummary={openSummary} onRoomJoin={joinRoom} onRoomLeave={discardRoom} />
     : tab === 'crew'
-      ? <Crew profile={data.profile} membership={data.room} session={data.session} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} onOpenTonight={() => setTab('tonight')} />
+      ? <Crew profile={data.profile} membership={activeMembership} session={data.session} initialCode={data.session?.roomCode ?? invitedCode} onJoin={joinRoom} onLeave={clearRoom} onOpenTonight={() => setTab('tonight')} />
       : tab === 'games'
-        ? <Games membership={data.room} room={null} spiciness={data.preferences.spiciness} onSpiciness={(spiciness) => updatePreferences({ spiciness })} />
+        ? <Games nightMode={data.session?.nightMode ?? 'solo'} membership={activeMembership} room={null} spiciness={data.preferences.spiciness} onSpiciness={(spiciness) => updatePreferences({ spiciness })} onOpenCrew={() => setTab('crew')} />
         : tab === 'pubs'
-          ? <Pubs membership={data.room} />
+          ? <Pubs session={data.session} membership={activeMembership} draft={data.pubCrawlDraft} reducedMotion={data.preferences.reducedMotion} onDraftChange={updateDraftCrawl} onCrawlChange={updateCrawl} onOpenCrew={() => setTab('crew')} />
           : tab === 'stats'
             ? <Stats history={data.history} profile={data.profile} />
       : tab === 'history'
@@ -250,7 +296,7 @@ export default function App() {
     <div data-theme={data.preferences.themedNight} className={`${data.session ? 'active-night-shell' : 'app-shell'}${data.preferences.bigThumbMode ? ' big-thumb-mode' : ''}`}>
       <Suspense fallback={<main className="screen"><p className="empty-copy">Opening…</p></main>}>{content}</Suspense>
       {data.session
-        ? <ActiveNightNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />
+        ? <ActiveNightNav active={tab} onChange={setTab} nightMode={data.session.nightMode} roomActive={Boolean(activeMembership)} />
         : <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />}
     </div>
   )

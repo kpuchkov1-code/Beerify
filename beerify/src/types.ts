@@ -24,6 +24,7 @@ export interface Profile {
 }
 
 export type ParticipationMode = 'drinking' | 'sober' | 'driver'
+export type NightMode = 'solo' | 'group'
 export type CoachPersonality = 'friend' | 'elder' | 'gremlin'
 export type ThemedNight = 'classic' | 'halloween' | 'new-year' | 'birthday' | 'st-patrick'
 
@@ -116,8 +117,11 @@ export interface NightSession {
   targetSnapshot?: TargetSnapshot
   mealState: MealState
   participationMode: ParticipationMode
+  nightMode: NightMode
   drinks: LoggedDrink[]
   waters: number[]
+  roomCode?: string
+  pubCrawl: PubCrawlStop[]
   roomName?: string
   roomEvents?: RoomEvent[]
   roomMembers?: Pick<SquadMember, 'id' | 'name'>[]
@@ -149,6 +153,41 @@ export interface RoomMembership {
   memberId: string
   memberToken: string
   isHost: boolean
+}
+
+export interface PubCrawlStop {
+  id: string
+  name: string
+  lat: number
+  lng: number
+  type: string
+  address?: string
+  par?: number
+  drink?: string
+}
+
+export interface PubCrawlDraft {
+  stops: PubCrawlStop[]
+  updatedAt: number
+}
+
+export interface VenueResult extends PubCrawlStop {
+  distanceMeters: number
+}
+
+export interface GeocodeResult {
+  id: string
+  label: string
+  lat: number
+  lng: number
+  bbox?: [number, number, number, number]
+}
+
+export interface CrawlRoute {
+  distanceMeters: number
+  durationSeconds: number
+  geometry: { type: 'LineString'; coordinates: number[][] }
+  fallback?: boolean
 }
 
 export type ZoneStatus = 'sober' | 'warming' | 'in-zone' | 'over' | 'way-over'
@@ -308,6 +347,7 @@ export interface RoomState {
   events: RoomEvent[]
   activeRound: RoomRound | null
   roundRota: string[]
+  crawl: PubCrawlStop[]
   activeGame?: PublicGameSummary
   gameLeaderboard: GameLeaderboardEntry[]
 }
@@ -317,6 +357,7 @@ export interface AppData {
   session: NightSession | null
   history: NightSession[]
   room: RoomMembership | null
+  pubCrawlDraft: PubCrawlDraft | null
   preferences: Preferences
 }
 

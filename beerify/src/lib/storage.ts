@@ -20,6 +20,9 @@ import type {
   RoomLeaderboard,
   TargetSnapshot,
   TargetId,
+  NightMode,
+  PubCrawlStop,
+  PubCrawlDraft,
 } from '../types'
 import {
   BUILT_IN_PRESETS,
@@ -44,6 +47,7 @@ const STYLES = new Set<DrinkStyle>(['lager', 'stout', 'ipa', 'ale', 'cider', 're
 const SERVES = new Set<DrinkServe>(['pint', 'bottle', 'can', '125ml', '175ml', '250ml', 'single', 'double', 'cocktail', 'shot'])
 const MEALS = new Set<MealState>(['empty', 'snack', 'meal', 'unknown'])
 const PARTICIPATION_MODES = new Set<ParticipationMode>(['drinking', 'sober', 'driver'])
+const NIGHT_MODES = new Set<NightMode>(['solo', 'group'])
 const COACH_PERSONALITIES = new Set<CoachPersonality>(['friend', 'elder', 'gremlin'])
 const THEMED_NIGHTS = new Set<ThemedNight>(['classic', 'halloween', 'new-year', 'birthday', 'st-patrick'])
 const LEGACY_TARGETS: Record<Exclude<TargetId, 'wavy' | 'smashed'>, TargetSnapshot> = {
@@ -207,6 +211,32 @@ function normalizeRoomEvent(value: unknown): RoomEvent | null {
   }
 }
 
+function normalizeCrawlStop(value: unknown): PubCrawlStop | null {
+  const stop = record(value)
+  const id = text(stop?.id, 100)
+  const name = text(stop?.name, 80)
+  if (!stop || !id || !name || !finite(stop.lat) || !finite(stop.lng) || Math.abs(stop.lat) > 90 || Math.abs(stop.lng) > 180) return null
+  return {
+    id,
+    name,
+    lat: stop.lat,
+    lng: stop.lng,
+    type: text(stop.type, 40) ?? 'pub',
+    address: text(stop.address, 160) ?? undefined,
+    par: finite(stop.par) ? Math.min(9, Math.max(1, Math.round(stop.par))) : undefined,
+    drink: text(stop.drink, 50) ?? undefined,
+  }
+}
+
+function normalizeCrawlDraft(value: unknown, now: number): PubCrawlDraft | null {
+  const draft = record(value)
+  const stops = Array.isArray(draft?.stops)
+    ? draft.stops.map(normalizeCrawlStop).filter((stop): stop is PubCrawlStop => stop !== null).slice(0, 12)
+    : []
+  if (!stops.length) return null
+  return { stops, updatedAt: finite(draft?.updatedAt) ? draft.updatedAt : now }
+}
+
 function normalizeSession(value: unknown, custom: DrinkPreset[], now: number): NightSession | null {
   const s = record(value)
   const id = text(s?.id, 100)
@@ -231,8 +261,13 @@ function normalizeSession(value: unknown, custom: DrinkPreset[], now: number): N
     participationMode: typeof s.participationMode === 'string' && PARTICIPATION_MODES.has(s.participationMode as ParticipationMode)
       ? s.participationMode as ParticipationMode
       : 'drinking',
+    nightMode: typeof s.nightMode === 'string' && NIGHT_MODES.has(s.nightMode as NightMode)
+      ? s.nightMode as NightMode
+      : text(s.roomCode, 6) || text(s.roomName, 36) ? 'group' : 'solo',
     drinks,
     waters,
+    roomCode: typeof s.roomCode === 'string' && /^[A-Z2-9]{6}$/.test(s.roomCode) ? s.roomCode : undefined,
+    pubCrawl: Array.isArray(s.pubCrawl) ? s.pubCrawl.map(normalizeCrawlStop).filter((stop): stop is PubCrawlStop => stop !== null).slice(0, 12) : [],
     roomName: text(s.roomName, 36) ?? undefined,
     roomEvents: Array.isArray(s.roomEvents)
       ? s.roomEvents.map(normalizeRoomEvent).filter((event): event is RoomEvent => event !== null)
@@ -298,13 +333,20 @@ export function normalizeData(value: unknown, now = Date.now()): AppData {
   const root = record(value)
   const preferences = normalizePreferences(root?.preferences, now)
   const custom = preferences.customPresets
+  const room = normalizeRoom(root?.room)
+  const rawSession = record(root?.session)
+  const normalizedSession = normalizeSession(root?.session, custom, now)
+  const session = normalizedSession && room && rawSession && !NIGHT_MODES.has(rawSession.nightMode as NightMode)
+    ? { ...normalizedSession, nightMode: 'group' as const, roomCode: room.code }
+    : normalizedSession
   return {
     profile: normalizeProfile(root?.profile, now),
-    session: normalizeSession(root?.session, custom, now),
+    session,
     history: Array.isArray(root?.history)
       ? root.history.map((s) => normalizeSession(s, custom, now)).filter((s): s is NightSession => s !== null)
       : [],
-    room: normalizeRoom(root?.room),
+    room,
+    pubCrawlDraft: normalizeCrawlDraft(root?.pubCrawlDraft, now),
     preferences,
   }
 }

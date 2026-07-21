@@ -28,3 +28,41 @@ test('map proxy returns a safe fallback error when a provider fails', async () =
     else process.env.VENUE_SERVICE_URL = previous
   }
 })
+
+test('geocoding validates queries and sanitizes provider results', async () => {
+  const invalid = await GET(new Request('http://local/api/maps?action=geocode&q=x'))
+  assert.equal(invalid.status, 400)
+  const previousKey = process.env.MAPTILER_API_KEY
+  const previousFetch = globalThis.fetch
+  process.env.MAPTILER_API_KEY = 'test-key'
+  globalThis.fetch = async () => new Response(JSON.stringify({ features: [
+    { id: 'place.london', place_name: 'London, England', geometry: { type: 'Point', coordinates: [-0.1276, 51.5072] }, bbox: [-0.52, 51.28, 0.34, 51.7] },
+    { id: 'bad', place_name: 'Bad', geometry: { type: 'Point', coordinates: [999, 999] } },
+  ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+  try {
+    const response = await GET(new Request('http://local/api/maps?action=geocode&q=London'))
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { locations: [{ id: 'place.london', label: 'London, England', lat: 51.5072, lng: -0.1276, bbox: [-0.52, 51.28, 0.34, 51.7] }] })
+  } finally {
+    globalThis.fetch = previousFetch
+    if (previousKey === undefined) delete process.env.MAPTILER_API_KEY
+    else process.env.MAPTILER_API_KEY = previousKey
+  }
+})
+
+test('nearby places are deduplicated and sorted by distance', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ elements: [
+    { type: 'node', id: 2, lat: 51.52, lon: -0.1, tags: { name: 'Far Bar', amenity: 'bar' } },
+    { type: 'node', id: 1, lat: 51.5002, lon: -0.1001, tags: { name: 'Near Pub', amenity: 'pub', 'addr:housenumber': '1', 'addr:street': 'High Street' } },
+    { type: 'way', id: 3, center: { lat: 51.5002, lon: -0.1001 }, tags: { name: 'Near Pub', amenity: 'pub' } },
+  ] }), { status: 200, headers: { 'content-type': 'application/json' } })
+  try {
+    const response = await GET(new Request('http://local/api/maps?action=nearby&lat=51.5&lng=-0.1&radius=1250'))
+    assert.equal(response.status, 200)
+    const body = await response.json() as { venues: Array<{ name: string; address?: string; distanceMeters: number }> }
+    assert.deepEqual(body.venues.map((venue) => venue.name), ['Near Pub', 'Far Bar'])
+    assert.equal(body.venues[0].address, '1 High Street')
+    assert.ok(body.venues[0].distanceMeters < body.venues[1].distanceMeters)
+  } finally { globalThis.fetch = previousFetch }
+})

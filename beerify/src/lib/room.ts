@@ -10,6 +10,7 @@ import type {
   GameAction,
   GameKind,
   GameView,
+  PubCrawlStop,
 } from '../types'
 import { apiUrl, publicAppOrigin } from './platform'
 import { newId } from './storage'
@@ -31,13 +32,15 @@ function credentials(isHost: boolean, memberId: string): RoomMembership {
   return { code: '', memberId, memberToken: newId(), isHost }
 }
 
-class RoomRequestError extends Error {
+export class RoomRequestError extends Error {
   readonly status: number
+  readonly code?: string
   readonly latestGame?: GameView
 
-  constructor(message: string, status: number, latestGame?: GameView) {
+  constructor(message: string, status: number, code?: string, latestGame?: GameView) {
     super(message)
     this.status = status
+    this.code = code
     this.latestGame = latestGame
   }
 }
@@ -47,8 +50,20 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
-  const body = await response.json().catch(() => null) as { error?: string; game?: GameView } | null
-  if (!response.ok) throw new RoomRequestError(body?.error ?? `Request failed (${response.status})`, response.status, body?.game)
+  const body = await response.json().catch(() => null) as { error?: string; code?: string; game?: GameView } | null
+  if (!response.ok) {
+    const message = body?.error ?? `Request failed (${response.status})`
+    if (typeof window !== 'undefined' && (body?.code === 'ROOM_AUTH_INVALID' || body?.code === 'ROOM_EXPIRED')) {
+      let detail: { code?: string; memberId?: string } = {}
+      try {
+        const sent = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : null
+        const sentMember = sent?.member && typeof sent.member === 'object' ? sent.member as Record<string, unknown> : null
+        detail = { code: typeof sent?.code === 'string' ? sent.code : undefined, memberId: typeof sent?.memberId === 'string' ? sent.memberId : typeof sentMember?.id === 'string' ? sentMember.id : undefined }
+      } catch { /* A malformed request has no membership to clear. */ }
+      window.dispatchEvent(new CustomEvent('beerify:room-invalid', { detail }))
+    }
+    throw new RoomRequestError(message, response.status, body?.code, body?.game)
+  }
   return body
 }
 
@@ -114,6 +129,13 @@ export async function configureRoom(
   }) as RoomState
 }
 
+export async function setRoomCrawl(membership: RoomMembership, crawl: PubCrawlStop[]): Promise<RoomState> {
+  return await request('/api/room', {
+    method: 'POST',
+    body: JSON.stringify(gamePayload(membership, 'crawl-update', { crawl })),
+  }) as RoomState
+}
+
 function gamePayload(membership: RoomMembership, action: string, extra: Record<string, unknown> = {}) {
   return { action, code: membership.code, memberId: membership.memberId, memberToken: membership.memberToken, ...extra }
 }
@@ -126,7 +148,7 @@ export async function fetchRoomGame(membership: RoomMembership): Promise<GameVie
   try {
     return await request('/api/room', { method: 'POST', body: JSON.stringify(gamePayload(membership, 'game-state')) }) as GameView
   } catch (error) {
-    if (error instanceof RoomRequestError && error.status === 404) return null
+    if (error instanceof RoomRequestError && error.status === 404 && error.code !== 'ROOM_EXPIRED') return null
     throw error
   }
 }

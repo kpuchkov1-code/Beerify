@@ -1,12 +1,12 @@
 # Beerify
 
-Beerify is a mobile-first social app for nights out. Open a private room, share a six-character code or QR link, log the order, react to friends, organise rounds and publish a recap when the tab closes.
+Beerify is a mobile-first app for nights out. Start once in Solo or Group mode, log the order, play games, build a crawl and publish a recap when the tab closes.
 
 ## What ships
 
-- Five pub-slang vibe bands on a vertical slider: Lightweight, Buzzing, Pissed, Battered and Blackout.
+- Seven compact selectable drinking targets, from Lightweight to Blackout.
 - Searchable built-in drinks, ten popular beer presets, and custom brand, serving-size and ABV presets.
-- Live rooms with member status, moments, reactions, synchronized cheers and a round-order rota.
+- Night-long Solo or Group context. Group mode keeps drinks, games, the crawl, Pub Golf and Bingo in one live room until the night ends.
 - Immutable local night history, BAC projections and shareable canvas recap images.
 - Guest-first use with optional passwordless Supabase sync.
 - Original drink pictograms plus web-fetched brand marks with text fallbacks; trademark files are not bundled.
@@ -46,6 +46,20 @@ During `npm run dev`, the same `/api/room` handler uses an in-memory store when 
 | `UPSTASH_REDIS_REST_TOKEN` | Server-side Redis token |
 
 Room metadata, members and the latest 50 events expire 24 hours after the last activity. Member tokens are generated in the browser and stored hashed on the server.
+
+## Maps and venue search
+
+Beerify renders maps with MapLibre. Current-location discovery and the raw OpenStreetMap raster fallback work without a commercial map account. For the production vector style and town/postcode search, configure:
+
+| Variable | Visibility | Purpose |
+| --- | --- | --- |
+| `VITE_MAP_STYLE_URL` | Browser | Full hosted MapLibre style URL. Use a public key restricted to Beerify's deployed origins. |
+| `MAPTILER_API_KEY` | Server only | Forward geocoding for town and postcode search. |
+| `GEOCODING_SERVICE_URL` | Server only, optional | MapTiler-compatible geocoding endpoint override. |
+| `VENUE_SERVICE_URL` | Server only, optional | Overpass-compatible nearby venue endpoint override. |
+| `ROUTE_SERVICE_URL` | Server only, optional | OSRM-compatible walking route endpoint override. |
+
+Town searches, nearby results and routes pass through `/api/maps`, which validates bounds and caches short-lived responses. Do not put the server geocoding key in a `VITE_` variable.
 
 ## Optional Supabase accounts
 

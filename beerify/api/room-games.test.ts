@@ -22,8 +22,16 @@ test('room game protocol authorizes hosts, redacts secrets, handles revisions, a
   const created = await call({ action: 'create', name: 'Protocol Night', memberToken: host.memberToken, member: member(host.memberId, 'Host') })
   assert.equal(created.response.status, 200)
   const code = String(created.body.code)
+  const rejected = await call({ action: 'game-state', code, memberId: host.memberId, memberToken: guest1.memberToken })
+  assert.equal(rejected.response.status, 401)
+  assert.equal(rejected.body.code, 'ROOM_AUTH_INVALID')
   await call({ action: 'update', code, memberToken: guest1.memberToken, member: member(guest1.memberId, 'Guest One') })
   await call({ action: 'update', code, memberToken: guest2.memberToken, member: member(guest2.memberId, 'Guest Two') })
+
+  const deniedCrawl = await call({ action: 'crawl-update', code, ...guest1, crawl: [] })
+  assert.equal(deniedCrawl.response.status, 403)
+  const invalidCrawl = await call({ action: 'crawl-update', code, ...host, crawl: [{ id: 'bad', name: 'Nowhere', lat: 999, lng: 0, type: 'pub' }] })
+  assert.equal(invalidCrawl.response.status, 400)
 
   const deniedStart = await call({ action: 'game-start', code, ...guest1, kind: 'psych', spiciness: 4 })
   assert.equal(deniedStart.response.status, 403)
@@ -138,6 +146,7 @@ test('room games pause for a lost host, promote spectators next round, and expir
     now += 25 * 60 * 60_000
     const expired = await api.GET(new Request(`http://local/api/room?code=${code}`))
     assert.equal(expired.status, 404)
+    assert.equal((await expired.json() as { code?: string }).code, 'ROOM_EXPIRED')
   } finally {
     Date.now = originalNow
   }
@@ -166,7 +175,13 @@ test('Pub Bingo and Pub Golf share live progress and winner state', async () => 
   assert.equal((view.body.players as Array<{ score: number }>)[0].score, 25)
   await call({ action: 'game-end', code, ...pubHost })
 
+  const crawl = [0, 1, 2].map((index) => ({ id: `pub-${index}`, name: `Pub ${index + 1}`, lat: 51.5 + index / 100, lng: -0.12 + index / 100, type: 'pub', par: 4, drink: `Drink ${index + 1}` }))
+  const crawlUpdate = await call({ action: 'crawl-update', code, ...pubHost, crawl })
+  assert.equal(crawlUpdate.response.status, 200)
+  assert.deepEqual(crawlUpdate.body.crawl, crawl)
+
   const golf = await call({ action: 'game-start', code, ...pubHost, kind: 'pub-golf', spiciness: 3 })
+  assert.deepEqual((golf.body.state as Record<string, unknown>).holes, crawl)
   view = await action(String(golf.body.id), 0, '27272727-2727-4727-8727-272727272727', { type: 'start' })
   for (let hole = 0; hole < 3; hole++) view = await action(String(golf.body.id), Number(view.body.revision), `28282828-2828-4828-8828-${String(hole).padStart(12, '0')}`, { type: 'golf-score', value: { hole, strokes: 3 + hole, par: 4, drink: `Drink ${hole + 1}` } })
   const golfByMember = (view.body.state as Record<string, unknown>).golfByMember as Record<string, Record<string, unknown>>

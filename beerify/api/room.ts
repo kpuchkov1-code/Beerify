@@ -2,7 +2,7 @@ import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { Redis } from '@upstash/redis'
 import { waitUntil } from '@vercel/functions'
 import { planRoomPushes, sendPlannedPushes, type PushRegistration } from './apns'
-import type { GameAction, GameKind, GamePhase, GamePlayer, GameView } from '../src/types'
+import type { GameAction, GameKind, GamePhase, GamePlayer, GameView, PubCrawlStop } from '../src/types'
 import { gameByKind, promptFor } from '../src/lib/games'
 
 const ROOM_TTL_SECONDS = 24 * 60 * 60
@@ -30,6 +30,7 @@ interface RoomMeta {
   labels: Record<string, string>
   hostMemberId: string
   leaderboardMode?: 'social' | 'balanced' | 'chaos'
+  crawl?: PubCrawlStop[]
 }
 
 interface StoredMember {
@@ -212,6 +213,14 @@ function json(status: number, body: unknown): Response {
   })
 }
 
+function roomExpired(message = 'That room has expired or does not exist'): Response {
+  return json(404, { error: message, code: 'ROOM_EXPIRED' })
+}
+
+function roomAuthInvalid(): Response {
+  return json(401, { error: 'Room credentials were rejected', code: 'ROOM_AUTH_INVALID' })
+}
+
 export function OPTIONS(): Response {
   return new Response(null, { status: 204, headers: {
     'Access-Control-Allow-Origin': '*',
@@ -235,6 +244,31 @@ function cleanText(value: unknown, max: number): string | null {
 function clamp(value: unknown, min: number, max: number): number {
   const number = typeof value === 'number' && Number.isFinite(value) ? value : 0
   return Math.min(max, Math.max(min, number))
+}
+
+function sanitizeCrawl(value: unknown): PubCrawlStop[] | null {
+  if (!Array.isArray(value) || value.length > 12) return null
+  const stops: PubCrawlStop[] = []
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) return null
+    const stop = raw as Record<string, unknown>
+    const id = cleanText(stop.id, 100)
+    const name = cleanText(stop.name, 80)
+    const lat = typeof stop.lat === 'number' && Number.isFinite(stop.lat) ? stop.lat : NaN
+    const lng = typeof stop.lng === 'number' && Number.isFinite(stop.lng) ? stop.lng : NaN
+    if (!id || !name || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+    stops.push({
+      id,
+      name,
+      lat,
+      lng,
+      type: cleanText(stop.type, 40) ?? 'pub',
+      address: cleanText(stop.address, 160) ?? undefined,
+      par: typeof stop.par === 'number' && Number.isFinite(stop.par) ? Math.round(clamp(stop.par, 1, 9)) : undefined,
+      drink: cleanText(stop.drink, 50) ?? undefined,
+    })
+  }
+  return stops
 }
 
 function tokenHash(token: string): string {
@@ -345,6 +379,7 @@ async function buildRoom(code: string): Promise<unknown | null> {
   })).filter((entry) => entry.score || entry.games).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
   return {
     ...meta,
+    crawl: meta.crawl ?? [],
     leaderboardMode: mode,
     leaderboard: { mode, categories },
     members: publicMembers,
@@ -503,7 +538,7 @@ export async function GET(request: Request): Promise<Response> {
     const code = normalizeCode(new URL(request.url).searchParams.get('code'))
     if (!code) return json(400, { error: 'Room codes have 6 letters or numbers' })
     const room = await buildRoom(code)
-    return room ? json(200, room) : json(404, { error: 'That room has expired or does not exist' })
+    return room ? json(200, room) : roomExpired()
   } catch (error) {
     console.error(error)
     return json(503, { error: 'Rooms are temporarily unavailable' })
@@ -538,6 +573,7 @@ export async function POST(request: Request): Promise<Response> {
           labels: {},
           hostMemberId: member.id,
           leaderboardMode: typeof payload.leaderboardMode === 'string' && LEADERBOARD_MODES.has(payload.leaderboardMode) ? payload.leaderboardMode as RoomMeta['leaderboardMode'] : 'balanced',
+          crawl: [],
         }
         const created = await db().set(metaKey(code), meta, { nx: true, ex: ROOM_TTL_SECONDS })
         if (!created) continue
@@ -552,10 +588,11 @@ export async function POST(request: Request): Promise<Response> {
       const code = normalizeCode(payload.code)
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       const member = sanitizeMember(payload.member, memberToken)
-      if (!code || !member || !(await readMeta(code))) return json(404, { error: 'That room has expired' })
+      if (!code || !member) return json(400, { error: 'Your room profile is incomplete' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
       const members = await readMembers(code)
       const existing = members[member.id]
-      if (existing && existing.tokenHash !== member.tokenHash) return json(403, { error: 'That room identity belongs to another device' })
+      if (existing && existing.tokenHash !== member.tokenHash) return roomAuthInvalid()
       if (!existing && Object.keys(members).length >= MEMBER_LIMIT) return json(409, { error: 'This room is full' })
       await db().hset(membersKey(code), { [member.id]: member })
       await refreshRoom(code)
@@ -568,8 +605,9 @@ export async function POST(request: Request): Promise<Response> {
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid room credentials' })
       const [meta, member] = await Promise.all([readMeta(code), authenticate(code, memberId, memberToken)])
-      if (!meta) return json(404, { error: 'That room has expired' })
-      if (!member || meta.hostMemberId !== memberId) return json(403, { error: 'Only the room host can change this' })
+      if (!meta) return roomExpired('That room has expired')
+      if (!member) return roomAuthInvalid()
+      if (meta.hostMemberId !== memberId) return json(403, { error: 'Only the room host can change this' })
       const labels = typeof payload.labels === 'object' && payload.labels !== null
         ? Object.fromEntries(Object.entries(payload.labels as Record<string, unknown>)
             .filter(([key, value]) => TARGETS.has(key) && cleanText(value, 24))
@@ -582,6 +620,22 @@ export async function POST(request: Request): Promise<Response> {
       return json(200, await buildRoom(code))
     }
 
+    if (payload.action === 'crawl-update') {
+      const code = normalizeCode(payload.code)
+      const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
+      const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
+      const crawl = sanitizeCrawl(payload.crawl)
+      if (!code || !validCredential(memberId, memberToken) || !crawl) return json(400, { error: 'Invalid crawl plan' })
+      const [meta, member, game] = await Promise.all([readMeta(code), authenticate(code, memberId, memberToken), readGame(code)])
+      if (!meta) return roomExpired('That room has expired')
+      if (!member) return roomAuthInvalid()
+      if (meta.hostMemberId !== memberId) return json(403, { error: 'Only the room host can edit the crawl' })
+      if (game?.kind === 'pub-golf') return json(409, { error: 'End Pub Golf before changing its shared holes' })
+      await db().set(metaKey(code), { ...meta, crawl }, { ex: ROOM_TTL_SECONDS })
+      await refreshRoom(code)
+      return json(200, await buildRoom(code))
+    }
+
     if (payload.action === 'push-register') {
       const code = normalizeCode(payload.code)
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
@@ -589,7 +643,8 @@ export async function POST(request: Request): Promise<Response> {
       const token = typeof payload.token === 'string' && /^[a-f0-9]{32,256}$/i.test(payload.token) ? payload.token.toLowerCase() : ''
       const environment = payload.environment === 'sandbox' ? 'sandbox' : payload.environment === 'production' ? 'production' : null
       if (!code || !token || !environment || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid push registration' })
-      if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
+      if (!(await authenticate(code, memberId, memberToken))) return roomAuthInvalid()
       await db().hset(pushesKey(code), { [memberId]: { token, environment } })
       await refreshRoom(code)
       return json(200, { ok: true })
@@ -600,7 +655,8 @@ export async function POST(request: Request): Promise<Response> {
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid push registration' })
-      if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
+      if (!(await authenticate(code, memberId, memberToken))) return roomAuthInvalid()
       await db().hdel(pushesKey(code), memberId)
       return json(200, { ok: true })
     }
@@ -611,8 +667,9 @@ export async function POST(request: Request): Promise<Response> {
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       const type = typeof payload.type === 'string' && EVENT_TYPES.has(payload.type) ? payload.type : null
       if (!code || !type || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid room event' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
       const member = await authenticate(code, memberId, memberToken)
-      if (!member) return json(403, { error: 'Room credentials were rejected' })
+      if (!member) return roomAuthInvalid()
       const events = await readEvents(code)
       const clientEventId = validId(payload.clientEventId) ? payload.clientEventId : null
       if (clientEventId && events.some((event) => event.id === clientEventId && event.actorId === memberId)) return json(200, await buildRoom(code))
@@ -664,16 +721,21 @@ export async function POST(request: Request): Promise<Response> {
       const kind = typeof payload.kind === 'string' && GAME_KINDS.has(payload.kind as GameKind) ? payload.kind as GameKind : null
       if (!code || !kind || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid game setup' })
       const [meta, member, current, members] = await Promise.all([readMeta(code), authenticate(code, memberId, memberToken), readGame(code), readMembers(code)])
-      if (!meta) return json(404, { error: 'That room has expired' })
-      if (!member || meta.hostMemberId !== memberId) return json(403, { error: 'Only the room host can start a game' })
+      if (!meta) return roomExpired('That room has expired')
+      if (!member) return roomAuthInvalid()
+      if (meta.hostMemberId !== memberId) return json(403, { error: 'Only the room host can start a game' })
       if (current) return json(409, { error: 'A room game is already active' })
+      if (kind === 'pub-golf' && (meta.crawl?.length ?? 0) < 3) return json(409, { error: 'Add at least 3 stops to the group crawl before starting Pub Golf' })
       const now = Date.now()
       const definition = gameByKind(kind)
       const game: StoredGame = {
         id: randomUUID(), kind, title: definition?.title ?? (kind === 'pub-golf' ? 'Pub Golf' : 'Pub Bingo'), phase: 'lobby', hostMemberId: memberId,
         createdAt: now, updatedAt: now, revision: 0, round: 0, spiciness: Math.round(clamp(payload.spiciness, 1, 5)), seed: randomInt(1, 0x7fffffff),
         players: Object.values(members).map((player) => ({ memberId: player.id, name: player.name, ready: player.id === memberId, score: 0 })),
-        state: {}, privateByMember: {}, processedActionIds: [],
+        state: kind === 'pub-golf'
+          ? { holes: meta.crawl!.slice(0, 9), golfByMember: {} }
+          : kind === 'pub-bingo' ? { bingoByMember: {} } : {},
+        privateByMember: {}, processedActionIds: [],
       }
       await saveGame(code, game); await refreshRoom(code)
       return json(200, gameView(game, memberId))
@@ -684,8 +746,9 @@ export async function POST(request: Request): Promise<Response> {
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid room credentials' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
       const authenticated = await authenticate(code, memberId, memberToken)
-      if (!authenticated) return json(403, { error: 'Room credentials were rejected' })
+      if (!authenticated) return roomAuthInvalid()
       const member = await touchMember(code, authenticated)
       const stored = await readGame(code)
       if (!stored) return json(404, { error: 'No room game is active' })
@@ -701,8 +764,9 @@ export async function POST(request: Request): Promise<Response> {
       const clientActionId = validId(payload.clientActionId) ? payload.clientActionId : null
       const gameAction = payload.gameAction && typeof payload.gameAction === 'object' ? payload.gameAction as GameAction : null
       if (!code || !clientActionId || !gameAction || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid game action' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
       const authenticated = await authenticate(code, memberId, memberToken)
-      if (!authenticated) return json(403, { error: 'Room credentials were rejected' })
+      if (!authenticated) return roomAuthInvalid()
       const member = await touchMember(code, authenticated)
       try {
         return await withGameLock(code, async () => {
@@ -802,8 +866,9 @@ export async function POST(request: Request): Promise<Response> {
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid game request' })
-      const [member, game] = await Promise.all([authenticate(code, memberId, memberToken), readGame(code)])
-      if (!member) return json(403, { error: 'Room credentials were rejected' })
+      const [meta, member, game] = await Promise.all([readMeta(code), authenticate(code, memberId, memberToken), readGame(code)])
+      if (!meta) return roomExpired('That room has expired')
+      if (!member) return roomAuthInvalid()
       if (!game) return json(200, { ok: true })
       if (game.hostMemberId !== memberId) return json(403, { error: 'Only the game host can end this game' })
       await Promise.all(game.players.map(async (player) => {
@@ -819,7 +884,8 @@ export async function POST(request: Request): Promise<Response> {
       const memberId = typeof payload.memberId === 'string' ? payload.memberId : ''
       const memberToken = typeof payload.memberToken === 'string' ? payload.memberToken : ''
       if (!code || !validCredential(memberId, memberToken)) return json(400, { error: 'Invalid room credentials' })
-      if (!(await authenticate(code, memberId, memberToken))) return json(403, { error: 'Room credentials were rejected' })
+      if (!(await readMeta(code))) return roomExpired('That room has expired')
+      if (!(await authenticate(code, memberId, memberToken))) return roomAuthInvalid()
       await Promise.all([db().hdel(membersKey(code), memberId), db().hdel(pushesKey(code), memberId)])
       return json(200, { ok: true })
     }

@@ -1,27 +1,53 @@
-import { useEffect, useRef, useState } from 'react'
-import type { GameAction, GameKind, GameView, RoomMembership, RoomState } from '../types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { GameAction, GameKind, GameView, NightMode, RoomMembership, RoomState } from '../types'
 import { createLocalGame, GAME_DEFINITIONS, gameByKind, promptFor, reduceLocalGame, type LocalGameState } from '../lib/games'
 import { endRoomGame, fetchRoom, sendGameAction, startRoomGame, useRoomGame } from '../lib/room'
 
+type GameFilter = 'all' | 'fast' | 'social' | 'quiz' | 'classic'
+
+const GAME_FILTERS: { id: GameFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'fast', label: 'Fast' },
+  { id: 'social', label: 'Social' },
+  { id: 'quiz', label: 'Quiz' },
+  { id: 'classic', label: 'Classic' },
+]
+
+function matchesFilter(mechanic: string, filter: GameFilter) {
+  if (filter === 'all') return true
+  if (filter === 'fast') return mechanic === 'timer'
+  if (filter === 'social') return mechanic === 'vote' || mechanic === 'submit'
+  if (filter === 'quiz') return mechanic === 'trivia'
+  return mechanic === 'prompt' || mechanic === 'choice'
+}
+
 interface Props {
+  nightMode: NightMode
   membership: RoomMembership | null
   room: RoomState | null
   spiciness: number
   onSpiciness: (value: number) => void
+  onOpenCrew: () => void
 }
 
-export default function Games({ membership, room, spiciness, onSpiciness }: Props) {
+export default function Games({ nightMode, membership, room, spiciness, onSpiciness, onOpenCrew }: Props) {
   const [roomState, setRoomState] = useState(room)
   const [selected, setSelected] = useState<GameKind | null>(null)
   const [local, setLocal] = useState<LocalGameState | null>(null)
   const [answer, setAnswer] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<GameFilter>('all')
   const [now, setNow] = useState(Date.now())
   const motionLock = useRef(0)
   const { game, error, setGame } = useRoomGame(membership)
   const activeKind = game?.kind && game.kind !== 'pub-golf' && game.kind !== 'pub-bingo' ? game.kind : selected
   const definition = activeKind ? gameByKind(activeKind) : undefined
+  const visibleGames = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase('en-GB')
+    return GAME_DEFINITIONS.filter((entry) => matchesFilter(entry.mechanic, filter) && (!needle || `${entry.title} ${entry.subtitle}`.toLocaleLowerCase('en-GB').includes(needle)))
+  }, [filter, query])
 
   useEffect(() => {
     setRoomState(room)
@@ -92,6 +118,13 @@ export default function Games({ membership, room, spiciness, onSpiciness }: Prop
 
   function closeGame() { setSelected(null); setLocal(null); setAnswer(''); setMessage('') }
 
+  if (nightMode === 'group' && !membership) return (
+    <main className="screen games-screen">
+      <header className="page-header page-header--stacked"><span className="page-kicker">GROUP NIGHT</span><h1>Reconnect your crew</h1><p>This night stays in Group mode. Rejoin the room once and live games will appear here automatically.</p></header>
+      <button className="btn btn--primary" onClick={onOpenCrew}>Reconnect in Crew</button>
+    </main>
+  )
+
   if (definition && (local || game?.kind === definition.kind)) {
     return <GamePlay
       definition={definition}
@@ -113,20 +146,22 @@ export default function Games({ membership, room, spiciness, onSpiciness }: Prop
 
   return (
     <main className="screen games-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">PARTY CONTROL</span><h1>Pick your poison</h1><p>Pass one phone around, or start a live game for everyone in your room.</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">{nightMode === 'group' ? 'GROUP NIGHT' : 'PASS THE PHONE'}</span><h1>Pick your poison</h1><p>{nightMode === 'group' ? 'The host starts once. Everyone in the group gets the same live round.' : 'Local games stay on this phone for the whole night.'}</p></header>
       <section className="spice-control" aria-labelledby="spice-title">
         <div><strong id="spice-title">Spiciness {spiciness}/5</strong><small>{['', 'Family-safe', 'Mild', 'Medium', 'Spicy', 'Unfiltered'][spiciness]}</small></div>
         <input aria-label="Game spiciness" type="range" min="1" max="5" step="1" value={spiciness} onChange={(event) => onSpiciness(Number(event.target.value))} />
       </section>
+      <section className="game-finder" aria-label="Find a game"><label htmlFor="game-search">Find a game</label><input id="game-search" type="search" value={query} placeholder="Search 22 games" onChange={(event) => setQuery(event.target.value)} /><div aria-label="Filter games">{GAME_FILTERS.map((item) => <button key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}</div></section>
       {roomState?.gameLeaderboard?.length ? <section className="game-leaderboard"><div className="section-heading"><h2>Room leaderboard</h2><span>{roomState.code}</span></div><ol>{roomState.gameLeaderboard.slice(0, 5).map((entry, index) => <li key={entry.memberId}><span>{index + 1}</span><strong>{entry.name}</strong><span>{entry.score} pts</span></li>)}</ol></section> : null}
-      {game && (game.kind === 'pub-golf' || game.kind === 'pub-bingo') && <p className="status-message">{game.title} is active in Pubs.</p>}
+      {game && (game.kind === 'pub-golf' || game.kind === 'pub-bingo') && <section className="active-game-card"><span className="status-badge status-badge--on">LIVE</span><strong>{game.title}</strong><small>Open Pubs to continue the shared game.</small></section>}
       <div className="game-list">
-        {GAME_DEFINITIONS.map((entry, index) => <article className={index < 5 ? 'game-row game-row--featured' : 'game-row'} key={entry.kind}>
+        {visibleGames.map((entry, index) => <article className={filter === 'all' && !query && index < 5 ? 'game-row game-row--featured' : 'game-row'} key={entry.kind}>
           <span className="game-row__emoji" aria-hidden="true">{entry.emoji}</span>
           <span><strong>{entry.title}</strong><small>{entry.subtitle}</small><em>{entry.minPlayers}+ players · {entry.mechanic}</em></span>
-          <div><button className="btn btn--secondary" onClick={() => openLocal(entry.kind)}>Local</button>{membership?.isHost && <button className="btn btn--primary" disabled={busy || Boolean(game)} onClick={() => void startLive(entry.kind)}>Room</button>}</div>
+          <div>{nightMode === 'solo' ? <button className="btn btn--primary" onClick={() => openLocal(entry.kind)}>Play</button> : membership?.isHost ? <button className="btn btn--primary" disabled={busy || Boolean(game)} onClick={() => void startLive(entry.kind)}>Start for group</button> : <span className="game-row__waiting">Host starts</span>}</div>
         </article>)}
       </div>
+      {!visibleGames.length && <p className="empty-copy">No games match that search. Try another name or filter.</p>}
     </main>
   )
 }

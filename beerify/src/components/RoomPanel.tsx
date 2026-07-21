@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { LeaderboardMetric, LeaderboardMode, NightSession, Profile, RoomEvent, RoomMembership, RoomReaction, SquadMember, TargetId } from '../types'
 import { TARGET_ORDER, TARGETS } from '../lib/drinks'
-import { configureRoom, createRoom, inviteUrl, joinRoom, leaveRoom, sendRoomEvent, trackMetric, useRoom } from '../lib/room'
+import { configureRoom, inviteUrl, leaveRoom, sendRoomEvent, trackMetric, useRoom } from '../lib/room'
 import { estimateBacRange } from '../lib/bac'
 import { zoneStatus } from '../lib/coach'
 import { MemberRow } from './Squad'
 import DrinkIcon from './DrinkIcon'
 import RoomCountdown from './RoomCountdown'
 import { nativeShare } from '../lib/native'
+import RoomSetup from './RoomSetup'
 
 interface Props {
   profile: Profile
@@ -17,6 +18,7 @@ interface Props {
   onJoin: (membership: RoomMembership) => void
   onLeave: () => void
   onOpenTonight: () => void
+  lockMembership?: boolean
 }
 
 const REACTIONS: { id: RoomReaction; label: string; icon: string }[] = [
@@ -69,14 +71,12 @@ function timeAgo(at: number): string {
   return minutes < 1 ? 'now' : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
 }
 
-export default function RoomPanel({ profile, membership, session, initialCode = '', onJoin, onLeave, onOpenTonight }: Props) {
-  const [joinCode, setJoinCode] = useState(initialCode)
+export default function RoomPanel({ profile, membership, session, initialCode = '', onJoin, onLeave, onOpenTonight, lockMembership = false }: Props) {
   const [busy, setBusy] = useState(false)
   const [eventBusy, setEventBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [qr, setQr] = useState('')
   const [order, setOrder] = useState('')
-  const [leaderboardMode, setLeaderboardMode] = useState<LeaderboardMode | null>(null)
   const member = currentMember(profile, session)
   const self = membership ? { id: membership.memberId, ...member } : null
   const { room, error: roomError, refresh } = useRoom(membership, self, 5_000)
@@ -95,30 +95,6 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
       const { default: QRCode } = await import('qrcode')
       setQr(await QRCode.toDataURL(inviteUrl(membership.code), { width: 260, margin: 1, color: { dark: '#10241cff', light: '#f7f7f4ff' } }))
     } catch { setError('Could not make the invite QR') }
-  }
-
-  async function handleCreate() {
-    setBusy(true); setError(null)
-    try {
-      if (!leaderboardMode) { setError('Choose the room leaderboard first'); return }
-      const result = await createRoom(profile.name, member, profile.id, leaderboardMode)
-      onJoin(result.membership)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not open a room')
-    } finally { setBusy(false) }
-  }
-
-  async function handleJoin() {
-    const code = joinCode.trim().toUpperCase()
-    if (!/^[A-Z2-9]{6}$/.test(code)) { setError('Room codes use 6 letters or numbers'); return }
-    setBusy(true); setError(null)
-    try {
-      const result = await joinRoom(code, member, profile.id)
-      onJoin(result.membership)
-      setJoinCode('')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not join that room')
-    } finally { setBusy(false) }
   }
 
   async function emit(type: Parameters<typeof sendRoomEvent>[1], detail?: Parameters<typeof sendRoomEvent>[2]): Promise<boolean> {
@@ -163,31 +139,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
   }
 
   if (!membership) {
-    return (
-      <div className="room-entry">
-        <section className="room-entry__create">
-          <span className="room-entry__mark" aria-hidden="true">♟</span>
-          <h2>Open tonight's room</h2>
-          <p>One link for the order, the reactions and the evidence.</p>
-          <fieldset className="leaderboard-choice fieldset-reset">
-            <legend>Choose the leaderboard</legend>
-            <div className="leaderboard-choice__options">
-              {LEADERBOARD_OPTIONS.map((option) => (
-                <button key={option.id} type="button" aria-pressed={leaderboardMode === option.id} aria-describedby="leaderboard-choice-detail" className="leaderboard-option" onClick={() => setLeaderboardMode(option.id)}>{option.label}</button>
-              ))}
-            </div>
-            <p id="leaderboard-choice-detail" className="leaderboard-choice__detail">{LEADERBOARD_OPTIONS.find((option) => option.id === leaderboardMode)?.detail ?? 'Pick what the room should rank.'}</p>
-          </fieldset>
-          <button className="btn btn--primary btn--big" disabled={busy || !leaderboardMode} onClick={handleCreate}>{busy ? 'Opening room…' : 'Create room'}</button>
-        </section>
-        <div className="room-entry__or"><span>or join the others</span></div>
-        <div className="room-code-form">
-          <label htmlFor="room-code">Room code</label>
-          <div><input id="room-code" value={joinCode} maxLength={6} autoCapitalize="characters" autoCorrect="off" placeholder="ABC123" aria-invalid={Boolean(error)} aria-describedby={error ? 'room-entry-error' : undefined} onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, ''))} /><button className="btn btn--secondary" disabled={busy || joinCode.length !== 6} onClick={handleJoin}>Join</button></div>
-        </div>
-        {error && <p id="room-entry-error" className="field__error" role="alert">{error}</p>}
-      </div>
-    )
+    return <RoomSetup profileName={profile.name} member={member} initialCode={initialCode} onJoined={onJoin} />
   }
 
   return (
@@ -205,21 +157,8 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
       {(error || roomError) && <p className="inline-error" role="alert">{error || roomError}</p>}
       {session && room && <RoomCountdown events={room.events} />}
 
-      <section className="crew-section">
-        <div className="section-heading"><h2>Who's in</h2><span>{room?.members.length ?? 0}/{20}</span></div>
-        <ul className="squad squad--room">
-          {(room?.members ?? []).map((member) => <MemberRow key={member.id} member={member} isSelf={member.id === membership.memberId} />)}
-        </ul>
-      </section>
-
-      {room && <section className="leaderboard-panel">
-        <div className="section-heading"><h2>Leaderboard</h2><button className="text-action" onClick={shareLeaderboard}>Share card</button></div>
-        <p className="leaderboard-panel__mode">{LEADERBOARD_OPTIONS.find((option) => option.id === room.leaderboardMode)?.label} mode</p>
-        {hasLeaderboardEntries ? <div className="leaderboard-categories">{Object.entries(room.leaderboard.categories).map(([metric, entries]) => entries?.length ? <article key={metric}><h3>{LEADERBOARD_LABELS[metric as LeaderboardMetric]}</h3><ol>{entries.map((entry, index) => <li key={entry.memberId}><span><b>{index + 1}</b>{entry.name}</span><strong>{metric === 'bac' ? entry.value.toFixed(3).replace(/^0/, '') : metric === 'units' ? `${entry.value.toFixed(1)}u` : entry.value}</strong></li>)}</ol></article> : null)}</div> : <p className="leaderboard-empty">No scores yet. Start logging drinks and the first rankings will appear here.</p>}
-      </section>}
-
-      <section className="ritual-panel">
-        <div className="section-heading"><h2>Make some noise</h2></div>
+      <section className="ritual-panel ritual-panel--primary">
+        <div className="section-heading"><h2>Make some noise</h2><span>Live actions</span></div>
         {suggestedBuyer && <p className="ritual-panel__rota"><strong>Round rota:</strong> {suggestedBuyer.name} is up next · {room?.roundRota.length ?? 0} bought so far</p>}
         <div className="reaction-grid">
           {REACTIONS.map((reaction) => <button key={reaction.id} disabled={Boolean(eventBusy)} aria-busy={eventBusy === 'reaction'} onClick={() => void emit('reaction', { reaction: reaction.id })}><span aria-hidden="true">{reaction.icon}</span><small>{reaction.label}</small></button>)}
@@ -229,6 +168,19 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
           <button className="btn btn--primary" disabled={Boolean(room?.activeRound || eventBusy)} aria-busy={eventBusy === 'round-invite'} onClick={() => void emit('round-invite')}>{eventBusy === 'round-invite' ? 'Opening round…' : 'Open next round'}</button>
         </div>
       </section>
+
+      <section className="crew-section">
+        <div className="section-heading"><h2>Who's in</h2><span>{room?.members.length ?? 0}/{20}</span></div>
+        <ul className="squad squad--room">
+          {(room?.members ?? []).map((member) => <MemberRow key={member.id} member={member} isSelf={member.id === membership.memberId} />)}
+        </ul>
+      </section>
+
+      {room && <details className="crew-disclosure"><summary><span>Leaderboard</span><small>{hasLeaderboardEntries ? 'Current room rankings' : 'No scores yet'}</small></summary><section className="leaderboard-panel">
+        <div className="section-heading"><h2>Room rankings</h2><button className="text-action" onClick={shareLeaderboard}>Share card</button></div>
+        <p className="leaderboard-panel__mode">{LEADERBOARD_OPTIONS.find((option) => option.id === room.leaderboardMode)?.label} mode</p>
+        {hasLeaderboardEntries ? <div className="leaderboard-categories">{Object.entries(room.leaderboard.categories).map(([metric, entries]) => entries?.length ? <article key={metric}><h3>{LEADERBOARD_LABELS[metric as LeaderboardMetric]}</h3><ol>{entries.map((entry, index) => <li key={entry.memberId}><span><b>{index + 1}</b>{entry.name}</span><strong>{metric === 'bac' ? entry.value.toFixed(3).replace(/^0/, '') : metric === 'units' ? `${entry.value.toFixed(1)}u` : entry.value}</strong></li>)}</ol></article> : null)}</div> : <p className="leaderboard-empty">No scores yet. Start logging drinks and the first rankings will appear here.</p>}
+      </section></details>}
 
       {room?.activeRound && (
         <section className="round-ticket">
@@ -242,7 +194,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
         </section>
       )}
 
-      <section className="crew-section">
+      <details className="crew-disclosure"><summary><span>Group activity</span><small>{room?.events.length ?? 0} moments</small></summary><section className="crew-section">
         <div className="section-heading"><h2>Live from the group chat</h2><span>{room?.events.length ?? 0}</span></div>
         {(room?.events.length ?? 0) === 0 ? <p className="empty-copy">The room is suspiciously quiet. Log a drink or start a round.</p> : (
           <ol className="moment-feed">
@@ -254,7 +206,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
             ))}
           </ol>
         )}
-      </section>
+      </section></details>
 
       {membership.isHost && room && (
         <details className="host-settings">
@@ -275,7 +227,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
       )}
 
       <details className="qr-panel" onToggle={(event) => void loadQr(event.currentTarget.open)}><summary>Show invite QR</summary>{qr && <img src={qr} alt={`QR code for Beerify room ${membership.code}`} />}</details>
-      <button className="danger-link" disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await leaveRoom(membership); onLeave() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not leave the room') } finally { setBusy(false) } }}>Leave room</button>
+      {lockMembership ? <p className="locked-room-copy">Group mode is locked for this night. End the night to close your room.</p> : <button className="danger-link" disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await leaveRoom(membership); onLeave() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not leave the room') } finally { setBusy(false) } }}>Leave room</button>}
     </div>
   )
 }
