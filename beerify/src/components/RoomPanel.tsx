@@ -194,8 +194,8 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
         </section>
       )}
 
-      <details className="crew-disclosure"><summary><span>Group activity</span><small>{room?.events.length ?? 0} moments</small></summary><section className="crew-section">
-        <div className="section-heading"><h2>Live from the group chat</h2><span>{room?.events.length ?? 0}</span></div>
+      <details className="crew-disclosure"><summary><span>Squad activity</span><small>{room?.events.length ?? 0} moments</small></summary><section className="crew-section">
+        <div className="section-heading"><h2>Live from the squad chat</h2><span>{room?.events.length ?? 0}</span></div>
         {(room?.events.length ?? 0) === 0 ? <p className="empty-copy">The room is suspiciously quiet. Log a drink or start a round.</p> : (
           <ol className="moment-feed">
             {[...(room?.events ?? [])].reverse().map((event) => (
@@ -227,7 +227,7 @@ export default function RoomPanel({ profile, membership, session, initialCode = 
       )}
 
       <details className="qr-panel" onToggle={(event) => void loadQr(event.currentTarget.open)}><summary>Show invite QR</summary>{qr && <img src={qr} alt={`QR code for Beerify room ${membership.code}`} />}</details>
-      {lockMembership ? <p className="locked-room-copy">Group mode is locked for this night. End the night to close your room.</p> : <button className="danger-link" disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await leaveRoom(membership); onLeave() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not leave the room') } finally { setBusy(false) } }}>Leave room</button>}
+      {lockMembership ? <p className="locked-room-copy">Squad mode is locked for this night. End the night to close your room.</p> : <button className="danger-link" disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await leaveRoom(membership); onLeave() } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not leave the room') } finally { setBusy(false) } }}>Leave room</button>}
     </div>
   )
 }

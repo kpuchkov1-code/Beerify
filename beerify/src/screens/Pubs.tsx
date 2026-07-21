@@ -172,12 +172,12 @@ function MapCanvas({ mode, venues, crawl, route, selectedId, reducedMotion, onSe
 
 function LivePanel({ membership, game, onGame, onError, kind }: { membership: RoomMembership; game: GameView | null; onGame: (game: GameView | null) => void; onError: (message: string) => void; kind: GameKind }) {
   if (game && game.kind !== kind) return <p className="status-message">{game.title} is already live in this room.</p>
-  if (!game) return membership.isHost ? <button className="btn btn--secondary" onClick={async () => { try { onGame(await startRoomGame(membership, kind, 3)) } catch (error) { onError(error instanceof Error ? error.message : 'Could not start for the group') } }}>Start for the group</button> : <p className="status-message">Waiting for the host to start this for the group.</p>
+  if (!game) return membership.isHost ? <button className="btn btn--secondary" onClick={async () => { try { onGame(await startRoomGame(membership, kind, 3)) } catch (error) { onError(error instanceof Error ? error.message : 'Could not start for the squad') } }}>Start for the squad</button> : <p className="status-message">Waiting for the host to start this for the squad.</p>
   const act = async (type: 'ready' | 'start' | 'advance' | 'end') => {
     try {
       if (type === 'end') { await endRoomGame(membership); onGame(null); return }
       onGame(await sendGameAction(membership, game, { type }))
-    } catch (error) { onError(error instanceof Error ? error.message : 'The group missed that action') }
+    } catch (error) { onError(error instanceof Error ? error.message : 'The squad missed that action') }
   }
   return <div className="live-game-strip"><span className="status-badge status-badge--on">Live · {game.phase}</span><span>{game.players.filter((player) => !player.spectator).length} playing</span>{game.phase === 'lobby' && <button className="text-action" onClick={() => void act(game.canControl ? 'start' : 'ready')}>{game.canControl ? 'Begin when ready' : 'I’m ready'}</button>}{game.canControl && game.phase !== 'lobby' && <button className="text-action" onClick={() => void act('advance')}>Next round</button>}{game.canControl && <button className="text-action text-action--danger" onClick={() => void act('end')}>End</button>}</div>
 }
@@ -293,7 +293,7 @@ export default function Pubs({ session, membership, draft, reducedMotion, onDraf
   }
 
   async function updateCrawl(next: PubCrawlStop[]) {
-    if (isGroup && !membership?.isHost) { setMessage('Only the group host can change the shared crawl.'); return }
+    if (isGroup && !membership?.isHost) { setMessage('Only the squad host can change the shared crawl.'); return }
     if (isGroup && live.game?.kind === 'pub-golf') { setMessage('End Pub Golf before changing its shared holes.'); return }
     if (!session) { onDraftChange(next); setMessage(next.length ? 'Draft crawl saved on this device.' : 'Draft cleared.'); return }
     if (!isGroup) { onCrawlChange(next); return }
@@ -305,7 +305,7 @@ export default function Pubs({ session, membership, draft, reducedMotion, onDraf
       onCrawlChange(room.crawl)
       await groupRoom.refresh()
       setMessage('Shared crawl updated for everyone.')
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not sync the group crawl') }
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not sync the squad crawl') }
   }
 
   function moveStop(index: number, direction: -1 | 1) {
@@ -344,7 +344,7 @@ export default function Pubs({ session, membership, draft, reducedMotion, onDraf
 
   if (isGroup && !membership) return (
     <main className="screen pubs-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">GROUP NIGHT</span><h1>Reconnect the crawl</h1><p>Your route is still part of this Group night. Reconnect once to restore the room-owned plan on every phone.</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">SQUAD NIGHT</span><h1>Reconnect the crawl</h1><p>Your route is still part of this Squad night. Reconnect once to restore the shared plan on every phone.</p></header>
       <button className="btn btn--primary" onClick={onOpenCrew}>Reconnect in Crew</button>
     </main>
   )
@@ -362,7 +362,7 @@ export default function Pubs({ session, membership, draft, reducedMotion, onDraf
   </main>
 
   if (view === 'bingo') return <main className="screen pubs-screen pub-game-focus">
-    <header className="page-header"><button className="icon-btn" aria-label="Back to crawl" onClick={() => setView('plan')}>←</button><div><span className="page-kicker">PUB GAME</span><h1>▦ Pub Bingo</h1><p>The same seeded card, tracked live for the group.</p></div></header>
+    <header className="page-header"><button className="icon-btn" aria-label="Back to crawl" onClick={() => setView('plan')}>←</button><div><span className="page-kicker">PUB GAME</span><h1>▦ Pub Bingo</h1><p>The same seeded card, tracked live for the squad.</p></div></header>
     {isGroup && membership && <LivePanel membership={membership} game={live.game} onGame={live.setGame} onError={setMessage} kind="pub-bingo" />}
     {message && <p className="status-message" role="status">{message}</p>}
     <div className="bingo-card" aria-label="Seeded pub bingo card">{card.map((prompt, index) => <button key={`${prompt}-${index}`} disabled={!groupCanPlayBingo} aria-pressed={checked.has(index)} className={checked.has(index) ? 'bingo-square bingo-square--checked' : 'bingo-square'} onClick={() => toggleBingo(index)}>{prompt}</button>)}</div>
@@ -388,7 +388,7 @@ export default function Pubs({ session, membership, draft, reducedMotion, onDraf
   </main>
 
   return <main className="screen pubs-screen pubs-plan">
-    <header className="page-header page-header--stacked"><span className="page-kicker">{isGroup ? 'SHARED CRAWL' : session ? 'YOUR NIGHT' : 'PLAN AHEAD'}</span><h1>{isGroup ? 'Everyone, same route' : 'Your crawl'}</h1><p>{isGroup ? membership?.isHost ? 'You set the order once. Every phone follows the same room-owned plan.' : 'Follow the host’s live stop order and route.' : session ? 'Build the route, then turn it into a game.' : 'Save a route now and bring it into your next Solo or hosted Group night.'}</p></header>
+    <header className="page-header page-header--stacked"><span className="page-kicker">{isGroup ? 'SHARED CRAWL' : session ? 'YOUR NIGHT' : 'PLAN AHEAD'}</span><h1>{isGroup ? 'Everyone, same route' : 'Your crawl'}</h1><p>{isGroup ? membership?.isHost ? 'You set the order once. Every phone follows the same shared plan.' : 'Follow the host’s live stop order and route.' : session ? 'Build the route, then turn it into a game.' : 'Save a route now and bring it into your next Solo or hosted Squad night.'}</p></header>
     {crawl.length ? <>
       <section className="crawl-map-shell"><MapCanvas mode="plan" venues={[]} crawl={crawl} route={route} selectedId={selectedId} reducedMotion={reducedMotion} onSelect={setSelectedId} onGeolocate={(next) => void loadNearby(next, 'Near you', next.accuracy)} /><div className="route-summary"><span><strong>{crawl.length}</strong><small>stops</small></span><span><strong>{routeStatus === 'loading' ? '…' : route && !route.fallback ? formatDistance(route.distanceMeters) : '—'}</strong><small>walking</small></span><span><strong>{routeStatus === 'loading' ? '…' : route && !route.fallback ? `${Math.round(route.durationSeconds / 60)} min` : '—'}</strong><small>estimate</small></span></div></section>
       {routeStatus === 'fallback' && <p className="status-message" role="status">Walking directions are unavailable. The map shows the stop order as a straight line. <button className="text-action" onClick={() => setRouteAttempt((value) => value + 1)}>Retry</button></p>}

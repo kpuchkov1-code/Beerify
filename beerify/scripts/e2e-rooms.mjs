@@ -65,18 +65,18 @@ await ana.getByRole('button', { name: 'Back to crawl' }).click()
 await expect('Ana saves a three-stop draft before starting', await ana.locator('.crawl-stop').count() === 3)
 await ana.getByRole('button', { name: 'Tonight', exact: true }).click()
 
-// Ana chooses Group once, creates the shared night, then starts it.
-await ana.getByRole('button', { name: /^Group/ }).click()
+// Ana chooses Squad once, creates the shared night, then starts it.
+await ana.getByRole('button', { name: /^Squad/ }).click()
 await ana.setViewportSize({ width: 320, height: 568 })
-await expect('group setup fits a 320px phone', await ana.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+await expect('squad setup fits a 320px phone', await ana.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 await ana.setViewportSize({ width: 390, height: 664 })
-await ana.getByRole('button', { name: 'Create group' }).click()
-await ana.getByText('Group connected').waitFor({ timeout: 15000 })
+await ana.getByRole('button', { name: 'Create squad' }).click()
+await ana.getByText('Squad connected').waitFor({ timeout: 15000 })
 const code = await ana.evaluate(() => JSON.parse(localStorage.getItem('beerify:v2')).room.code)
 await expect(`Ana got a room code (${code})`, /^[A-Z2-9]{6}$/.test(code ?? ''))
-await ana.getByRole('button', { name: 'Start group night →' }).click()
+await ana.getByRole('button', { name: 'Start squad night →' }).click()
 await ana.locator('.night-bar').waitFor({ timeout: 15000 })
-await expect('Ana group mode is locked into the active night', await ana.locator('.night-bar').getByText(/Group/).isVisible())
+await expect('Ana squad mode is locked into the active night', await ana.locator('.night-bar').getByText(/Squad/).isVisible())
 const protocol = await ana.evaluate(async () => {
   const membership = JSON.parse(localStorage.getItem('beerify:v2')).room
   const post = (body) => fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...membership, ...body }) })
@@ -92,13 +92,13 @@ const protocol = await ana.evaluate(async () => {
 await expect('push registration and removal authenticate successfully', protocol.registered === 200 && protocol.unregistered === 200)
 await expect('retried room events remain idempotent', protocol.first === 200 && protocol.duplicate === 200 && protocol.copies === 1)
 
-// Ben chooses Group, joins the same code and starts his side of that night.
-await ben.getByRole('button', { name: /^Group/ }).click()
-await ben.getByLabel('Group code').fill(code)
+// Ben chooses Squad, joins the same code and starts his side of that night.
+await ben.getByRole('button', { name: /^Squad/ }).click()
+await ben.getByLabel('Squad code').fill(code)
 await ben.getByRole('button', { name: 'Join', exact: true }).click()
-await ben.getByText('Group connected').waitFor({ timeout: 15000 })
-await ben.getByRole('button', { name: 'Start group night →' }).click()
-await expect('Ben starts in the same persistent group context', await ben.locator('.night-bar').getByText(/Group/).isVisible())
+await ben.getByText('Squad connected').waitFor({ timeout: 15000 })
+await ben.getByRole('button', { name: 'Start squad night →' }).click()
+await expect('Ben starts in the same persistent squad context', await ben.locator('.night-bar').getByText(/Squad/).isVisible())
 await ben.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
 await ben.locator('.room-ticket').waitFor({ timeout: 15000 })
 
@@ -110,7 +110,7 @@ for (let i = 0; i < 8 && rows < 2; i++) {
   rows = await ben.locator('.squad__row').count()
 }
 await expect(`Ben sees both members (got ${rows})`, rows === 2)
-await expect('Ben sees Ana active in the group night', await ben.locator('.squad__row', { hasText: 'Ana' }).getByText(/0 drinks/).isVisible())
+await expect('Ben sees Ana active in the squad night', await ben.locator('.squad__row', { hasText: 'Ana' }).getByText(/0 drinks/).isVisible())
 
 // The host draft is already canonical; Ben receives that same stop order.
 await ana.getByRole('button', { name: 'More', exact: true }).click()
@@ -136,7 +136,7 @@ await expect('host reordering updates the guest route order', await ben.locator(
 
 // Ana starts a live game; both devices submit into the same canonical round.
 await ana.getByRole('button', { name: 'Games', exact: true }).click()
-await ana.locator('.game-row', { hasText: 'Would You Rather' }).getByRole('button', { name: 'Start for group' }).click()
+await ana.locator('.game-row', { hasText: 'Would You Rather' }).getByRole('button', { name: 'Start for squad' }).click()
 await ana.getByRole('heading', { name: /Would You Rather/ }).waitFor()
 await ben.getByRole('button', { name: 'Games', exact: true }).click()
 await ben.getByRole('heading', { name: /Would You Rather/ }).waitFor({ timeout: 10000 })
@@ -155,7 +155,7 @@ await ana.getByRole('button', { name: 'Drinks', exact: true }).click()
 await ben.clock.fastForward(2000)
 await ben.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
 
-// Ana logs a beer; the already-selected Group context carries it into the room.
+// Ana logs a beer; the already-selected Squad context carries it into the room.
 await ana.getByRole('button', { name: 'Log Guinness' }).click()
 await ana.waitForTimeout(2500) // real clock: push fires 400ms after the tap
 await ana.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
@@ -187,14 +187,14 @@ await ben.evaluate(() => {
   localStorage.setItem('beerify:v2', JSON.stringify(data))
 })
 await ben.reload()
-await ben.getByText('Group connection lost').waitFor({ timeout: 10000 })
-await expect('rejected credentials become a recoverable group connection state', await ben.getByRole('button', { name: 'Reconnect' }).isVisible())
+await ben.getByText('Squad connection lost').waitFor({ timeout: 10000 })
+await expect('rejected credentials become a recoverable squad connection state', await ben.getByRole('button', { name: 'Reconnect' }).isVisible())
 await ben.getByRole('button', { name: 'Reconnect' }).click()
 await ben.getByRole('button', { name: 'Join', exact: true }).click()
 await ben.locator('.room-ticket').waitFor({ timeout: 10000 })
 await expect('Ben can rejoin the same room with a fresh room identity', await ben.locator('.room-ticket').getByText(code).isVisible())
 
-// Cleanup: ending each night closes its group membership automatically.
+// Cleanup: ending each night closes its squad membership automatically.
 await ana.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
 await ana.getByRole('button', { name: 'End the night' }).click()
 await ana.getByRole('button', { name: /End night and make recap/ }).click()

@@ -120,7 +120,7 @@ export default function Games({ nightMode, membership, room, spiciness, onSpicin
 
   if (nightMode === 'group' && !membership) return (
     <main className="screen games-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">GROUP NIGHT</span><h1>Reconnect your crew</h1><p>This night stays in Group mode. Rejoin the room once and live games will appear here automatically.</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">SQUAD NIGHT</span><h1>Reconnect your crew</h1><p>This night stays in Squad mode. Rejoin once and live games will appear here automatically.</p></header>
       <button className="btn btn--primary" onClick={onOpenCrew}>Reconnect in Crew</button>
     </main>
   )
@@ -146,7 +146,7 @@ export default function Games({ nightMode, membership, room, spiciness, onSpicin
 
   return (
     <main className="screen games-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">{nightMode === 'group' ? 'GROUP NIGHT' : 'PASS THE PHONE'}</span><h1>Pick your poison</h1><p>{nightMode === 'group' ? 'The host starts once. Everyone in the group gets the same live round.' : 'Local games stay on this phone for the whole night.'}</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">{nightMode === 'group' ? 'SQUAD NIGHT' : 'PASS THE PHONE'}</span><h1>Pick your poison</h1><p>{nightMode === 'group' ? 'The host starts once. Everyone in the squad gets the same live round.' : 'Local games stay on this phone for the whole night.'}</p></header>
       <section className="spice-control" aria-labelledby="spice-title">
         <div><strong id="spice-title">Spiciness {spiciness}/5</strong><small>{['', 'Family-safe', 'Mild', 'Medium', 'Spicy', 'Unfiltered'][spiciness]}</small></div>
         <input aria-label="Game spiciness" type="range" min="1" max="5" step="1" value={spiciness} onChange={(event) => onSpiciness(Number(event.target.value))} />
@@ -158,7 +158,7 @@ export default function Games({ nightMode, membership, room, spiciness, onSpicin
         {visibleGames.map((entry, index) => <article className={filter === 'all' && !query && index < 5 ? 'game-row game-row--featured' : 'game-row'} key={entry.kind}>
           <span className="game-row__emoji" aria-hidden="true">{entry.emoji}</span>
           <span><strong>{entry.title}</strong><small>{entry.subtitle}</small><em>{entry.minPlayers}+ players · {entry.mechanic}</em></span>
-          <div>{nightMode === 'solo' ? <button className="btn btn--primary" onClick={() => openLocal(entry.kind)}>Play</button> : membership?.isHost ? <button className="btn btn--primary" disabled={busy || Boolean(game)} onClick={() => void startLive(entry.kind)}>Start for group</button> : <span className="game-row__waiting">Host starts</span>}</div>
+          <div>{nightMode === 'solo' ? <button className="btn btn--primary" onClick={() => openLocal(entry.kind)}>Play</button> : membership?.isHost ? <button className="btn btn--primary" disabled={busy || Boolean(game)} onClick={() => void startLive(entry.kind)}>Start for squad</button> : <span className="game-row__waiting">Host starts</span>}</div>
         </article>)}
       </div>
       {!visibleGames.length && <p className="empty-copy">No games match that search. Try another name or filter.</p>}

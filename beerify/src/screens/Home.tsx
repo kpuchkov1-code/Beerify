@@ -51,18 +51,26 @@ export default function Home({ profile, history, preferences, membership, planne
 
       <section className="vibe-board" aria-label="Night setup">
         <fieldset className="night-mode-picker fieldset-reset">
-          <legend>First: who is tonight with?</legend>
+          <legend>Who are you out with?</legend>
           <div className="night-mode-picker__options">
-            <button type="button" aria-pressed={nightMode === 'solo'} onClick={() => setNightMode('solo')}><span aria-hidden="true">●</span><strong>Solo</strong><small>One phone, local games and your own crawl</small></button>
-            <button type="button" aria-pressed={nightMode === 'group'} onClick={() => setNightMode('group')}><span aria-hidden="true">♟</span><strong>Group</strong><small>Shared crew, games, crawl and scores</small></button>
+            <button type="button" aria-pressed={nightMode === 'solo'} onClick={() => setNightMode('solo')}>
+              <span className="night-mode-picker__icon" aria-hidden="true">●</span>
+              <span className="night-mode-picker__copy"><strong>Solo</strong><small>Your phone, your crawl and local games</small></span>
+              <span className="night-mode-picker__check" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" aria-pressed={nightMode === 'group'} onClick={() => setNightMode('group')}>
+              <span className="night-mode-picker__icon" aria-hidden="true">♟</span>
+              <span className="night-mode-picker__copy"><strong>Squad</strong><small>Shared crew, games, crawl and scores</small></span>
+              <span className="night-mode-picker__check" aria-hidden="true">✓</span>
+            </button>
           </div>
-          <p>Once the night starts, this stays fixed until the recap.</p>
+          <p>Your choice stays fixed until the recap.</p>
         </fieldset>
 
         {nightMode === 'group' && (membership ? (
-          <section className="group-ready" aria-label="Group ready">
+          <section className="group-ready" aria-label="Squad ready">
             <span aria-hidden="true">✓</span>
-            <div><strong>{pendingGroup.room ? 'Group connected' : 'Checking group…'}</strong><small>Code {membership.code} · shared for the whole night</small></div>
+            <div><strong>{pendingGroup.room ? 'Squad connected' : 'Checking squad…'}</strong><small>Code {membership.code} · shared for the whole night</small></div>
             <button type="button" className="text-action" onClick={onRoomLeave}>Change</button>
           </section>
         ) : <RoomSetup profileName={profile.name} member={restingMember} initialCode={initialCode} onJoined={onRoomJoin} />)}
@@ -78,9 +86,9 @@ export default function Home({ profile, history, preferences, membership, planne
         <fieldset className="meal-picker fieldset-reset"><legend>Drinking on</legend><div>{([['empty', 'Empty'], ['snack', 'A snack'], ['meal', 'A meal'], ['unknown', 'Not sure']] as const).map(([id, label]) => <button key={id} aria-pressed={meal === id} className={meal === id ? 'chip chip--active' : 'chip'} onClick={() => setMeal(id)}>{label}</button>)}</div></fieldset>
         </>}
         {participationMode !== 'drinking' && <p className="mode-note">{participationMode === 'driver' ? 'Water-only logging. Your designated-driver badge unlocks after 45 minutes.' : 'Alcohol logging stays locked while waters and the night itself still count.'}</p>}
-        {plannedStops > 0 && <p className="draft-handoff">⌖ {nightMode === 'group' && !membership?.isHost ? `Your ${plannedStops}-stop draft stays saved; this room’s route wins.` : `${plannedStops} planned stop${plannedStops === 1 ? '' : 's'} will come with you.`}</p>}
-        <button className="btn btn--primary btn--big" disabled={!groupReady || starting} aria-describedby={!groupReady ? 'group-start-help' : undefined} onClick={async () => { setStarting(true); setStartError(''); try { await onStartNight(target, meal, participationMode, nightMode) } catch (error) { setStartError(error instanceof Error ? error.message : 'Could not start the night') } finally { setStarting(false) } }}>{starting ? 'Starting…' : `Start ${nightMode === 'group' ? 'group' : 'solo'} night →`}</button>
-        {!groupReady && <p id="group-start-help" className="start-help">{membership ? 'Checking the group connection…' : 'Create or join a group above to start.'}</p>}
+        {plannedStops > 0 && <p className="draft-handoff">⌖ {nightMode === 'group' && !membership?.isHost ? `Your ${plannedStops}-stop draft stays saved; this squad’s route wins.` : `${plannedStops} planned stop${plannedStops === 1 ? '' : 's'} will come with you.`}</p>}
+        <button className="btn btn--primary btn--big" disabled={!groupReady || starting} aria-describedby={!groupReady ? 'group-start-help' : undefined} onClick={async () => { setStarting(true); setStartError(''); try { await onStartNight(target, meal, participationMode, nightMode) } catch (error) { setStartError(error instanceof Error ? error.message : 'Could not start the night') } finally { setStarting(false) } }}>{starting ? 'Starting…' : `Start ${nightMode === 'group' ? 'squad' : 'solo'} night →`}</button>
+        {!groupReady && <p id="group-start-help" className="start-help">{membership ? 'Checking the squad connection…' : 'Create or join a squad above to start.'}</p>}
         {startError && <p className="status-message" role="alert">{startError}</p>}
       </section>
 
@@ -110,6 +118,8 @@ export default function Home({ profile, history, preferences, membership, planne
           <span aria-hidden="true">→</span>
         </button>
       )}
+
+      <p className="home__disclaimer">Beerify estimates are a guide, not a breathalyser. Never use them to decide whether to drive.</p>
     </main>
   )
 }

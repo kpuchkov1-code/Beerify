@@ -127,7 +127,7 @@ export default function NightOut({ session, profile, preferences, membership, on
   return (
     <main className={`screen night night--${status} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.bigThumbMode ? 'big-thumb-mode' : ''}`}>
       <header className="night-bar">
-        <div><span>{displayTarget} · {session.nightMode === 'group' ? 'Group' : 'Solo'}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
+        <div><span>{displayTarget} · {session.nightMode === 'group' ? 'Squad' : 'Solo'}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
         <div className="night-bar__bac"><span>LIKELY</span><strong>{bac.toFixed(3).replace(/^0/, '')}</strong></div>
         <button className="icon-btn icon-btn--light" aria-label="End the night" onClick={() => endDialog.current?.showModal()}>×</button>
       </header>
@@ -144,7 +144,7 @@ export default function NightOut({ session, profile, preferences, membership, on
         {rideUrl && <a className="ride-home-link" href={rideUrl} target="_blank" rel="noreferrer">Get a ride home <span>↗</span></a>}
       </section>
 
-      {session.nightMode === 'group' && !membership && <section className="group-reconnect"><div><strong>Group connection lost</strong><small>Your night is still in Group mode. Rejoin once to resume shared drinks, games and crawl.</small></div><button className="btn btn--secondary" onClick={onOpenCrew}>Reconnect</button></section>}
+      {session.nightMode === 'group' && !membership && <section className="group-reconnect"><div><strong>Squad connection lost</strong><small>Your night is still in Squad mode. Rejoin once to resume shared drinks, games and crawl.</small></div><button className="btn btn--secondary" onClick={onOpenCrew}>Reconnect</button></section>}
 
       {membership && room && (
         <section className="night-crew-strip">
