@@ -18,6 +18,7 @@ export default function Onboarding({ onDone }: Props) {
   const [drinkerLevel, setDrinkerLevel] = useState<DrinkerLevel | null>(null)
   const [age, setAge] = useState('')
   const [height, setHeight] = useState('')
+  const [legalAge, setLegalAge] = useState(false)
   const weightKg = Number(weight)
   const weightValid = Number.isFinite(weightKg) && weightKg >= 35 && weightKg <= 250
 
@@ -64,12 +65,16 @@ export default function Onboarding({ onDone }: Props) {
           </div>
         </fieldset>
         <p className="persona-note">This changes the banter and shortcuts, not the BAC maths.</p>
+        <label className="legal-age-confirm">
+          <input type="checkbox" checked={legalAge} onChange={(event) => setLegalAge(event.target.checked)} />
+          <span><strong>I am at least 18</strong><small>I confirm I am also of legal drinking age where I live.</small></span>
+        </label>
         <button
           className="btn btn--primary btn--big"
-          disabled={!drinkerLevel}
+          disabled={!drinkerLevel || !legalAge}
           onClick={() => {
             const now = Date.now()
-            onDone({ id: newId(), name: name.trim(), weightKg, sex: sex!, drinkerLevel: drinkerLevel!, age: age ? Number(age) : undefined, heightCm: height ? Number(height) : undefined, createdAt: now, updatedAt: now })
+            onDone({ id: newId(), name: name.trim(), weightKg, sex: sex!, drinkerLevel: drinkerLevel!, age: age ? Number(age) : undefined, heightCm: height ? Number(height) : undefined, legalAgeConfirmedAt: now, avatarEmoji: '🙂', createdAt: now, updatedAt: now })
           }}
         >Enter Beerify</button>
       </main>

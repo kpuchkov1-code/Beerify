@@ -17,6 +17,8 @@ const bundleHasApi = readdirSync(bundleDir).filter((file) => file.endsWith('.js'
 assert.equal(nativeConfig.appId, 'app.beerify.mobile')
 assert.equal(nativeConfig.ios.contentInset, 'never')
 assert.ok(plist.includes('<string>beerify</string>'))
+assert.ok(plist.includes('<key>NSLocationWhenInUseUsageDescription</key>'))
+assert.ok(plist.includes('<key>NSMotionUsageDescription</key>'))
 assert.ok(delegate.includes('capacitorDidRegisterForRemoteNotifications'))
 assert.ok(delegate.includes('capacitorDidFailToRegisterForRemoteNotifications'))
 assert.ok(entitlements.includes('aps-environment'))

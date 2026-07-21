@@ -7,6 +7,9 @@ import type {
   SquadMember,
   TargetId,
   LeaderboardMode,
+  GameAction,
+  GameKind,
+  GameView,
 } from '../types'
 import { apiUrl, publicAppOrigin } from './platform'
 import { newId } from './storage'
@@ -30,10 +33,12 @@ function credentials(isHost: boolean, memberId: string): RoomMembership {
 
 class RoomRequestError extends Error {
   readonly status: number
+  readonly latestGame?: GameView
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, latestGame?: GameView) {
     super(message)
     this.status = status
+    this.latestGame = latestGame
   }
 }
 
@@ -42,8 +47,8 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   })
-  const body = await response.json().catch(() => null) as { error?: string } | null
-  if (!response.ok) throw new RoomRequestError(body?.error ?? `Request failed (${response.status})`, response.status)
+  const body = await response.json().catch(() => null) as { error?: string; game?: GameView } | null
+  if (!response.ok) throw new RoomRequestError(body?.error ?? `Request failed (${response.status})`, response.status, body?.game)
   return body
 }
 
@@ -107,6 +112,69 @@ export async function configureRoom(
       ...values,
     }),
   }) as RoomState
+}
+
+function gamePayload(membership: RoomMembership, action: string, extra: Record<string, unknown> = {}) {
+  return { action, code: membership.code, memberId: membership.memberId, memberToken: membership.memberToken, ...extra }
+}
+
+export async function startRoomGame(membership: RoomMembership, kind: GameKind, spiciness: number): Promise<GameView> {
+  return await request('/api/room', { method: 'POST', body: JSON.stringify(gamePayload(membership, 'game-start', { kind, spiciness })) }) as GameView
+}
+
+export async function fetchRoomGame(membership: RoomMembership): Promise<GameView | null> {
+  try {
+    return await request('/api/room', { method: 'POST', body: JSON.stringify(gamePayload(membership, 'game-state')) }) as GameView
+  } catch (error) {
+    if (error instanceof RoomRequestError && error.status === 404) return null
+    throw error
+  }
+}
+
+export async function sendGameAction(membership: RoomMembership, view: GameView, gameAction: GameAction): Promise<GameView> {
+  const send = (current: GameView) => request('/api/room', {
+    method: 'POST',
+    body: JSON.stringify(gamePayload(membership, 'game-action', { gameId: current.id, expectedRevision: current.revision, clientActionId: newId(), gameAction })),
+  }) as Promise<GameView>
+  try {
+    return await send(view)
+  } catch (error) {
+    if (error instanceof RoomRequestError && error.status === 409 && error.latestGame) {
+      const retryable = ['ready', 'choose', 'submit', 'score', 'bingo-toggle', 'golf-score'].includes(gameAction.type)
+      if (retryable && error.latestGame.id === view.id && (error.latestGame.phase === view.phase || gameAction.type === 'ready')) {
+        try { return await send(error.latestGame) }
+        catch (retryError) { if (retryError instanceof RoomRequestError && retryError.latestGame) return retryError.latestGame; throw retryError }
+      }
+      return error.latestGame
+    }
+    throw error
+  }
+}
+
+export async function endRoomGame(membership: RoomMembership): Promise<void> {
+  await request('/api/room', { method: 'POST', body: JSON.stringify(gamePayload(membership, 'game-end')) })
+}
+
+export function useRoomGame(membership: RoomMembership | null): { game: GameView | null; error: string | null; refresh: () => Promise<void>; setGame: (game: GameView | null) => void } {
+  const [game, setGame] = useState<GameView | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const refresh = useCallback(async () => {
+    if (!membership) { setGame(null); return }
+    try { setGame(await fetchRoomGame(membership)); setError(null) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'The game could not sync') }
+  }, [membership])
+  useEffect(() => {
+    if (!membership) { setGame(null); return }
+    let timer = 0
+    let active = true
+    const poll = async () => {
+      await refresh()
+      if (active) timer = window.setTimeout(poll, document.hidden ? 8_000 : 1_000)
+    }
+    void poll()
+    return () => { active = false; clearTimeout(timer) }
+  }, [membership, refresh])
+  return { game, error, refresh, setGame }
 }
 
 export async function sendRoomEvent(

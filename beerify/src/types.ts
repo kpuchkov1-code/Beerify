@@ -16,9 +16,16 @@ export interface Profile {
   drinkerLevel: DrinkerLevel
   age?: number
   heightCm?: number
+  legalAgeConfirmedAt?: number
+  avatarEmoji?: string
+  avatarImageData?: string
   createdAt: number
   updatedAt: number
 }
+
+export type ParticipationMode = 'drinking' | 'sober' | 'driver'
+export type CoachPersonality = 'friend' | 'elder' | 'gremlin'
+export type ThemedNight = 'classic' | 'halloween' | 'new-year' | 'birthday' | 'st-patrick'
 
 export type DrinkCategory =
   | 'beer'
@@ -108,6 +115,7 @@ export interface NightSession {
   targetId: TargetId
   targetSnapshot?: TargetSnapshot
   mealState: MealState
+  participationMode: ParticipationMode
   drinks: LoggedDrink[]
   waters: number[]
   roomName?: string
@@ -126,6 +134,13 @@ export interface Preferences {
   lastTargetId: TargetId
   reducedMotion: boolean
   haptics: boolean
+  coachPersonality: CoachPersonality
+  themedNight: ThemedNight
+  spiciness: number
+  bigThumbMode: boolean
+  rideHomeUrl: string
+  homeAddress: string
+  lastParticipationMode: ParticipationMode
   updatedAt: number
 }
 
@@ -193,6 +208,93 @@ export type LeaderboardMetric = 'rounds' | 'reactions' | 'activity' | 'variety' 
 export interface LeaderboardEntry { memberId: string; name: string; value: number }
 export interface RoomLeaderboard { mode: LeaderboardMode; categories: Partial<Record<LeaderboardMetric, LeaderboardEntry[]>> }
 
+export type GameKind =
+  | 'heads-up'
+  | 'psych'
+  | 'hot-takes'
+  | 'bomb-pass'
+  | 'medusa'
+  | 'bus-driver'
+  | 'dare-ladder'
+  | 'flip-cup'
+  | 'who-said-it'
+  | 'id-game'
+  | 'higher-lower'
+  | 'kings-cup'
+  | 'would-you-rather'
+  | 'most-likely-to'
+  | 'never-have-i-ever'
+  | 'truth-or-dare'
+  | 'trivia'
+  | 'two-truths-lie'
+  | 'categories'
+  | 'emoji-charades'
+  | 'roulette'
+  | 'guess-bac'
+  | 'pub-golf'
+  | 'pub-bingo'
+
+export type GamePhase = 'lobby' | 'playing' | 'reveal' | 'finished' | 'paused'
+
+export interface GamePlayer {
+  memberId: string
+  name: string
+  ready: boolean
+  score: number
+  spectator?: boolean
+}
+
+export interface PublicGameSummary {
+  id: string
+  kind: GameKind
+  title: string
+  phase: GamePhase
+  participantCount: number
+  hostMemberId: string
+  updatedAt: number
+}
+
+export interface GameLeaderboardEntry {
+  memberId: string
+  name: string
+  score: number
+  games: number
+}
+
+export interface GameSession {
+  id: string
+  kind: GameKind
+  phase: GamePhase
+  revision: number
+  seed: number
+  round: number
+  spiciness: number
+  hostMemberId: string
+  players: GamePlayer[]
+  state: Record<string, unknown>
+  endsAt?: number
+  updatedAt: number
+}
+
+export interface GameView extends PublicGameSummary {
+  revision: number
+  serverNow: number
+  round: number
+  spiciness: number
+  players: GamePlayer[]
+  state: Record<string, unknown>
+  privateState?: Record<string, unknown>
+  endsAt?: number
+  canControl: boolean
+}
+
+export type GameAction =
+  | { type: 'ready' | 'start' | 'advance' | 'skip' | 'claim-host' }
+  | { type: 'choose' | 'submit'; value: string | number }
+  | { type: 'score'; value?: number }
+  | { type: 'bingo-toggle'; value: number }
+  | { type: 'golf-score'; value: { hole: number; strokes: number; par: number; drink: string } }
+
 export interface RoomState {
   code: string
   name: string
@@ -206,6 +308,8 @@ export interface RoomState {
   events: RoomEvent[]
   activeRound: RoomRound | null
   roundRota: string[]
+  activeGame?: PublicGameSummary
+  gameLeaderboard: GameLeaderboardEntry[]
 }
 
 export interface AppData {

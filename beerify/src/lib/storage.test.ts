@@ -17,6 +17,9 @@ test('normalizes legacy profiles and drink records', () => {
   assert.equal('tolerance' in (data.profile ?? {}), false)
   assert.equal(data.session?.drinks[0].presetId, 'lager-can')
   assert.ok((data.session?.drinks[0].units ?? 0) < 3)
+  assert.equal(data.session?.participationMode, 'drinking')
+  assert.equal(data.preferences.lastParticipationMode, 'drinking')
+  assert.equal(data.preferences.spiciness, 3)
 })
 
 test('new profiles start on the lightweight setting', () => {

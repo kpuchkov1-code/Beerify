@@ -1,4 +1,4 @@
-import type { CoachMessage, NightSession, Profile, ZoneStatus } from '../types'
+import type { CoachMessage, CoachPersonality, NightSession, Profile, ZoneStatus } from '../types'
 import { bacTimeline, estimateBac, fullyAbsorbedAt, minutesUntilBac, projectBac } from './bac'
 import { TARGETS } from './drinks'
 
@@ -26,7 +26,7 @@ function recentWater(session: NightSession, now: number): boolean {
   return session.waters.some((at) => now - at < 45 * 60_000)
 }
 
-export function coachMessage(session: NightSession, profile: Profile, now: number): CoachMessage {
+function baseCoachMessage(session: NightSession, profile: Profile, now: number): CoachMessage {
   const bac = estimateBac(session.drinks, profile, now, session.mealState)
   const inThirty = projectBac(session.drinks, profile, now, 30, session.mealState)
   const rising = inThirty > bac + 0.002
@@ -110,6 +110,13 @@ export function coachMessage(session: NightSession, profile: Profile, now: numbe
     text: `You're cooked, ${firstName}. The app has seen enough evidence for one evening.`,
     tip: 'Stay with the group and switch the order.',
   }
+}
+
+export function coachMessage(session: NightSession, profile: Profile, now: number, personality: CoachPersonality = 'friend'): CoachMessage {
+  const message = baseCoachMessage(session, profile, now)
+  if (personality === 'elder') return { ...message, text: `A word from the elder: ${message.text}`, tip: message.tip ?? 'Pace the night; the next round will still be there.' }
+  if (personality === 'gremlin') return { ...message, text: `Gremlin report: ${message.text}`, tip: message.tone === 'warn' ? message.tip : message.tip ?? 'Cause scenes, keep receipts.' }
+  return message
 }
 
 export function morningVerdict(session: NightSession, profile: Profile): { headline: string; body: string } {

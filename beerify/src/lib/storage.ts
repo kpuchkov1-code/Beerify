@@ -14,6 +14,9 @@ import type {
   RoomMembership,
   Sex,
   MealState,
+  ParticipationMode,
+  CoachPersonality,
+  ThemedNight,
   RoomLeaderboard,
   TargetSnapshot,
   TargetId,
@@ -40,6 +43,9 @@ const ICONS = new Set<DrinkIconId>([
 const STYLES = new Set<DrinkStyle>(['lager', 'stout', 'ipa', 'ale', 'cider', 'red-wine', 'white-wine', 'sparkling', 'spirit', 'cocktail', 'shot', 'low-no'])
 const SERVES = new Set<DrinkServe>(['pint', 'bottle', 'can', '125ml', '175ml', '250ml', 'single', 'double', 'cocktail', 'shot'])
 const MEALS = new Set<MealState>(['empty', 'snack', 'meal', 'unknown'])
+const PARTICIPATION_MODES = new Set<ParticipationMode>(['drinking', 'sober', 'driver'])
+const COACH_PERSONALITIES = new Set<CoachPersonality>(['friend', 'elder', 'gremlin'])
+const THEMED_NIGHTS = new Set<ThemedNight>(['classic', 'halloween', 'new-year', 'birthday', 'st-patrick'])
 const LEGACY_TARGETS: Record<Exclude<TargetId, 'wavy' | 'smashed'>, TargetSnapshot> = {
   glow: { id: 'glow', label: 'Lightweight', emoji: '🙂', minBac: .01, maxBac: .03 },
   buzz: { id: 'buzz', label: 'Buzzing', emoji: '😏', minBac: .03, maxBac: .05 },
@@ -70,6 +76,13 @@ export function defaultPreferences(now = Date.now()): Preferences {
     lastTargetId: 'glow',
     reducedMotion: false,
     haptics: true,
+    coachPersonality: 'friend',
+    themedNight: 'classic',
+    spiciness: 3,
+    bigThumbMode: false,
+    rideHomeUrl: 'https://m.uber.com/',
+    homeAddress: '',
+    lastParticipationMode: 'drinking',
     updatedAt: now,
   }
 }
@@ -89,6 +102,11 @@ function normalizeProfile(value: unknown, now: number): Profile | null {
       : 'weekend',
     age: finite(p.age) && p.age >= 18 && p.age <= 100 ? p.age : undefined,
     heightCm: finite(p.heightCm) && p.heightCm >= 120 && p.heightCm <= 230 ? p.heightCm : undefined,
+    legalAgeConfirmedAt: finite(p.legalAgeConfirmedAt) ? p.legalAgeConfirmedAt : undefined,
+    avatarEmoji: text(p.avatarEmoji, 8) ?? undefined,
+    avatarImageData: typeof p.avatarImageData === 'string' && /^data:image\/(?:webp|jpeg|png);base64,/.test(p.avatarImageData) && p.avatarImageData.length < 250_000
+      ? p.avatarImageData
+      : undefined,
     createdAt: finite(p.createdAt) ? p.createdAt : now,
     updatedAt: finite(p.updatedAt) ? p.updatedAt : finite(p.createdAt) ? p.createdAt : now,
   }
@@ -210,6 +228,9 @@ function normalizeSession(value: unknown, custom: DrinkPreset[], now: number): N
     targetId: s.targetId as TargetId,
     targetSnapshot,
     mealState: typeof s.mealState === 'string' && MEALS.has(s.mealState as MealState) ? s.mealState as MealState : 'unknown',
+    participationMode: typeof s.participationMode === 'string' && PARTICIPATION_MODES.has(s.participationMode as ParticipationMode)
+      ? s.participationMode as ParticipationMode
+      : 'drinking',
     drinks,
     waters,
     roomName: text(s.roomName, 36) ?? undefined,
@@ -256,6 +277,19 @@ function normalizePreferences(value: unknown, now: number): Preferences {
     lastTargetId,
     reducedMotion: Boolean(raw?.reducedMotion),
     haptics: raw?.haptics !== false,
+    coachPersonality: typeof raw?.coachPersonality === 'string' && COACH_PERSONALITIES.has(raw.coachPersonality as CoachPersonality)
+      ? raw.coachPersonality as CoachPersonality
+      : 'friend',
+    themedNight: typeof raw?.themedNight === 'string' && THEMED_NIGHTS.has(raw.themedNight as ThemedNight)
+      ? raw.themedNight as ThemedNight
+      : 'classic',
+    spiciness: finite(raw?.spiciness) ? Math.min(5, Math.max(1, Math.round(raw.spiciness))) : 3,
+    bigThumbMode: Boolean(raw?.bigThumbMode),
+    rideHomeUrl: text(raw?.rideHomeUrl, 300) ?? 'https://m.uber.com/',
+    homeAddress: text(raw?.homeAddress, 240) ?? '',
+    lastParticipationMode: typeof raw?.lastParticipationMode === 'string' && PARTICIPATION_MODES.has(raw.lastParticipationMode as ParticipationMode)
+      ? raw.lastParticipationMode as ParticipationMode
+      : 'drinking',
     updatedAt: finite(raw?.updatedAt) ? raw.updatedAt : now,
   }
 }

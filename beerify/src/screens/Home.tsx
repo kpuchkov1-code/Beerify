@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { MealState, NightSession, Preferences, Profile, RoomMembership, TargetId } from '../types'
+import type { MealState, NightSession, ParticipationMode, Preferences, Profile, RoomMembership, TargetId } from '../types'
 import { allPresets, TARGETS, TARGET_ORDER } from '../lib/drinks'
 import { formatNightDate, formatUnits } from '../lib/format'
 import DrinkIcon from '../components/DrinkIcon'
@@ -9,7 +9,7 @@ interface Props {
   history: NightSession[]
   preferences: Preferences
   membership: RoomMembership | null
-  onStartNight: (target: TargetId, meal: MealState) => void
+  onStartNight: (target: TargetId, meal: MealState, mode: ParticipationMode) => void
   onOpenSummary: (session: NightSession) => void
   onOpenCrew: () => void
 }
@@ -17,6 +17,7 @@ interface Props {
 export default function Home({ profile, history, preferences, membership, onStartNight, onOpenSummary, onOpenCrew }: Props) {
   const [target, setTarget] = useState<TargetId>(preferences.lastTargetId)
   const [meal, setMeal] = useState<MealState>('unknown')
+  const [mode, setMode] = useState<ParticipationMode>(preferences.lastParticipationMode)
   const targetIndex = TARGET_ORDER.indexOf(target)
   const recent = [...history].sort((a, b) => b.startedAt - a.startedAt)[0]
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60_000
@@ -37,7 +38,12 @@ export default function Home({ profile, history, preferences, membership, onStar
         <h1>How chaotic is tonight?</h1>
       </header>
 
-      <section className="vibe-board" aria-labelledby="vibe-title">
+      <section className="vibe-board" aria-label="Night setup">
+        <fieldset className="participation-picker fieldset-reset">
+          <legend>How are you joining in?</legend>
+          <div>{([['drinking', '🍺 Drinking'], ['sober', '🌱 Sober'], ['driver', '🚗 Driver']] as const).map(([id, label]) => <button key={id} className={mode === id ? 'chip chip--active' : 'chip'} aria-pressed={mode === id} onClick={() => setMode(id)}>{label}</button>)}</div>
+        </fieldset>
+        {mode === 'drinking' && <>
         <div className="section-heading"><h2 id="vibe-title">Tonight's setting</h2><span>{TARGETS[target].emoji}</span></div>
         <div className="vibe-rail">
           <input
@@ -61,7 +67,9 @@ export default function Home({ profile, history, preferences, membership, onStar
           </div>
         </div>
         <fieldset className="meal-picker fieldset-reset"><legend>Drinking on</legend><div>{([['empty', 'Empty'], ['snack', 'A snack'], ['meal', 'A meal'], ['unknown', 'Not sure']] as const).map(([id, label]) => <button key={id} aria-pressed={meal === id} className={meal === id ? 'chip chip--active' : 'chip'} onClick={() => setMeal(id)}>{label}</button>)}</div></fieldset>
-        <button className="btn btn--primary btn--big" onClick={() => onStartNight(target, meal)}>Start the night →</button>
+        </>}
+        {mode !== 'drinking' && <p className="mode-note">{mode === 'driver' ? 'Water-only logging. Your designated-driver badge unlocks after 45 minutes.' : 'Alcohol logging stays locked while waters and the night itself still count.'}</p>}
+        <button className="btn btn--primary btn--big" onClick={() => onStartNight(target, meal, mode)}>Start {mode === 'drinking' ? 'the night' : `${mode} mode`} →</button>
       </section>
 
       <div className="home__split">

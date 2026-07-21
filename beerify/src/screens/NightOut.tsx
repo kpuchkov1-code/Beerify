@@ -56,9 +56,18 @@ export default function NightOut({ session, profile, preferences, membership, on
   const bac = bacRange.likely
   const incoming = useMemo(() => peakBacAhead(session.drinks, profile, now, 60, session.mealState), [session.drinks, profile, now, session.mealState])
   const status = zoneStatus(bac, session)
-  const coach = useMemo(() => coachMessage(session, profile, now), [session, profile, now])
+  const coach = useMemo(() => coachMessage(session, profile, now, preferences.coachPersonality), [session, profile, now, preferences.coachPersonality])
   const target = TARGETS[session.targetId]
   const totalUnits = session.drinks.reduce((sum, drink) => sum + drink.units, 0)
+  const alcoholLocked = session.participationMode !== 'drinking'
+  const rideUrl = useMemo(() => {
+    try {
+      const url = new URL(preferences.rideHomeUrl)
+      if (url.protocol !== 'https:') return ''
+      if (preferences.homeAddress) url.searchParams.set(url.hostname.includes('uber') ? 'dropoff[formatted_address]' : 'destination', preferences.homeAddress)
+      return url.toString()
+    } catch { return '' }
+  }, [preferences.rideHomeUrl, preferences.homeAddress])
   const presets = useMemo(() => allPresets(preferences.customPresets), [preferences.customPresets])
   const quickIds = [...preferences.favoritePresetIds, ...preferences.recentPresetIds]
   const quick = [...new Set(quickIds)].map((id) => presets.find((preset) => preset.id === id)).filter((preset): preset is DrinkPreset => Boolean(preset)).slice(0, 4)
@@ -87,6 +96,7 @@ export default function NightOut({ session, profile, preferences, membership, on
   }
 
   async function log(presetId: string) {
+    if (alcoholLocked) return
     const logged = onLogDrink(presetId)
     if (!logged) return
     setNow(Date.now())
@@ -111,10 +121,10 @@ export default function NightOut({ session, profile, preferences, membership, on
     }
   }
 
-  const displayTarget = targetLabel(session.targetId, room?.labels)
+  const displayTarget = session.participationMode === 'driver' ? 'Designated Driver' : session.participationMode === 'sober' ? 'Sober mode' : targetLabel(session.targetId, room?.labels)
 
   return (
-    <main className={`screen night night--${status} ${preferences.reducedMotion ? 'reduce-motion' : ''}`}>
+    <main className={`screen night night--${status} ${preferences.reducedMotion ? 'reduce-motion' : ''} ${preferences.bigThumbMode ? 'big-thumb-mode' : ''}`}>
       <header className="night-bar">
         <div><span>{displayTarget}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
         <div className="night-bar__bac"><span>LIKELY</span><strong>{bac.toFixed(3).replace(/^0/, '')}</strong></div>
@@ -122,12 +132,15 @@ export default function NightOut({ session, profile, preferences, membership, on
       </header>
 
       <section className="night-stage">
+        {alcoholLocked ? <div className="water-mode-stage"><span aria-hidden="true">{session.participationMode === 'driver' ? '🚗' : '🌱'}</span><div><strong>{session.waters.length}</strong><small>waters logged</small></div><button className="btn btn--primary" onClick={water}>Log water</button></div> : <>
         <BeerMeter bac={bac} incoming={incoming} target={{ ...target, label: displayTarget }} status={status} />
         <p className="bac-range">Plausible now: {bacRange.low.toFixed(3).replace(/^0/, '')}–{bacRange.high.toFixed(3).replace(/^0/, '')}% · {bacRange.model === 'watson' ? 'personalised model' : 'basic profile range'}</p>
+        </>}
         <div className={`hype-mate hype-mate--${coach.tone}`} role="status" aria-live="polite">
           <span className="hype-mate__badge">HYPE<br />MATE</span>
           <div><p>{coach.text}</p>{coach.tip && <small>{coach.tip}</small>}</div>
         </div>
+        {rideUrl && <a className="ride-home-link" href={rideUrl} target="_blank" rel="noreferrer">Get a ride home <span>↗</span></a>}
       </section>
 
       {membership && room && (
@@ -144,8 +157,8 @@ export default function NightOut({ session, profile, preferences, membership, on
       {membership && (roomActionError || roomError) && <p className="inline-error" role="alert">{roomActionError || roomError}</p>}
 
       <section className="quick-log" aria-labelledby="quick-log-title">
-        <div className="section-heading"><h2 id="quick-log-title">Tap the order</h2><button className="text-action" onClick={() => { setDrinkType(null); drinksDialog.current?.showModal() }}>Choose drink</button></div>
-        <div className="quick-log__grid">
+        <div className="section-heading"><h2 id="quick-log-title">{alcoholLocked ? `${session.participationMode === 'driver' ? 'Driver' : 'Sober'} mode` : 'Tap the order'}</h2>{!alcoholLocked && <button className="text-action" onClick={() => { setDrinkType(null); drinksDialog.current?.showModal() }}>Choose drink</button>}</div>
+        {alcoholLocked ? <p className="mode-lock-copy">Alcohol logging is locked for this night. Waters still count.</p> : <div className="quick-log__grid">
           {quick.map((preset) => (
             <button key={preset.id} className="quick-drink" onClick={() => log(preset.id)} aria-label={`Log ${preset.brand || preset.name}`}>
               <DrinkIcon icon={preset.icon} size={48} logoUrl={preset.logoUrl} brand={preset.brand} />
@@ -153,7 +166,7 @@ export default function NightOut({ session, profile, preferences, membership, on
               {burst && session.drinks.at(-1)?.presetId === preset.id && <span className="quick-drink__burst" aria-hidden="true">+1</span>}
             </button>
           ))}
-        </div>
+        </div>}
         <div className="quick-log__utility">
           <button onClick={water}>💧 <span>Water</span></button>
           <button disabled={!session.drinks.length} onClick={() => session.drinks.at(-1) && log(session.drinks.at(-1)!.presetId)}>↻ <span>Repeat last</span></button>

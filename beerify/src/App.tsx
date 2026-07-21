@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import type { AppData, DrinkPreset, LoggedDrink, MealState, NightSession, Profile, RoomMembership, RoomState, TargetId } from './types'
+import type { AppData, DrinkPreset, LoggedDrink, MealState, NightSession, ParticipationMode, Profile, RoomMembership, RoomState, TargetId } from './types'
 import { logFromPreset, presetById, TARGETS } from './lib/drinks'
 import { loadData, newId, saveData } from './lib/storage'
 import { registerRoomPush, trackMetric } from './lib/room'
@@ -8,12 +8,16 @@ import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import NightOut from './screens/NightOut'
 import Crew from './screens/Crew'
+import AgeConfirm from './screens/AgeConfirm'
 import AppNav, { type AppTab } from './components/AppNav'
 import ActiveNightNav from './components/ActiveNightNav'
 
 const Summary = lazy(() => import('./screens/Summary'))
 const History = lazy(() => import('./screens/History'))
 const ProfileScreen = lazy(() => import('./screens/Profile'))
+const Games = lazy(() => import('./screens/Games'))
+const Pubs = lazy(() => import('./screens/Pubs'))
+const Stats = lazy(() => import('./screens/Stats'))
 
 const INITIAL_PARAMS = new URLSearchParams(location.search)
 const INITIAL_ROOM_CODE = /^[A-Z2-9]{6}$/.test(INITIAL_PARAMS.get('room')?.toUpperCase() ?? '')
@@ -27,7 +31,7 @@ export default function App() {
   const [viewingSummary, setViewingSummary] = useState<NightSession | null>(null)
   const invitedCode = INITIAL_ROOM_CODE
   const [tab, setTab] = useState<AppTab>(invitedCode ? 'crew' : 'tonight')
-  const screenKey = !data.profile ? 'setup' : viewingSummary?.id ?? (data.session ? `night-${tab}` : tab)
+  const screenKey = !data.profile ? 'setup' : !data.profile.legalAgeConfirmedAt ? 'age' : viewingSummary?.id ?? (data.session ? `night-${tab}` : tab)
 
   useEffect(() => saveData(data), [data])
 
@@ -94,19 +98,19 @@ export default function App() {
     setData((current) => ({ ...current, profile: { ...profile, updatedAt: Date.now() } }))
   }
 
-  function startNight(targetId: TargetId, mealState: MealState) {
+  function startNight(targetId: TargetId, mealState: MealState, participationMode: ParticipationMode) {
     const now = Date.now()
     const target = TARGETS[targetId]
     setTab('tonight')
     setData((current) => ({
       ...current,
-      session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, drinks: [], waters: [] },
-      preferences: { ...current.preferences, lastTargetId: targetId, updatedAt: now },
+      session: { id: newId(), startedAt: now, updatedAt: now, targetId, targetSnapshot: { id: target.id, label: target.label, emoji: target.emoji, minBac: target.minBac, maxBac: target.maxBac }, mealState, participationMode, drinks: [], waters: [] },
+      preferences: { ...current.preferences, lastTargetId: targetId, lastParticipationMode: participationMode, updatedAt: now },
     }))
   }
 
   function logDrink(presetId: string): LoggedDrink | null {
-    if (!data.session) return null
+    if (!data.session || data.session.participationMode !== 'drinking') return null
     const preset = presetById(presetId, data.preferences.customPresets)
     if (!preset) return null
     const now = Date.now()
@@ -220,6 +224,8 @@ export default function App() {
 
   if (!data.profile) return <Onboarding onDone={setProfile} />
 
+  if (!data.profile.legalAgeConfirmedAt) return <AgeConfirm profile={data.profile} onConfirm={updateProfile} />
+
   if (viewingSummary) {
     return <Suspense fallback={<main className="screen"><p className="empty-copy">Opening your recap…</p></main>}><Summary session={viewingSummary} history={data.history} profile={data.profile} onClose={() => setViewingSummary(null)} /></Suspense>
   }
@@ -230,12 +236,18 @@ export default function App() {
       : <Home profile={data.profile} history={data.history} preferences={data.preferences} membership={data.room} onStartNight={startNight} onOpenSummary={openSummary} onOpenCrew={() => setTab('crew')} />
     : tab === 'crew'
       ? <Crew profile={data.profile} membership={data.room} session={data.session} initialCode={invitedCode} onJoin={joinRoom} onLeave={leaveRoom} onOpenTonight={() => setTab('tonight')} />
+      : tab === 'games'
+        ? <Games membership={data.room} room={null} spiciness={data.preferences.spiciness} onSpiciness={(spiciness) => updatePreferences({ spiciness })} />
+        : tab === 'pubs'
+          ? <Pubs membership={data.room} />
+          : tab === 'stats'
+            ? <Stats history={data.history} profile={data.profile} />
       : tab === 'history'
         ? <History history={data.history} onOpenSummary={openSummary} />
         : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />
 
   return (
-    <div className={data.session ? 'active-night-shell' : 'app-shell'}>
+    <div data-theme={data.preferences.themedNight} className={`${data.session ? 'active-night-shell' : 'app-shell'}${data.preferences.bigThumbMode ? ' big-thumb-mode' : ''}`}>
       <Suspense fallback={<main className="screen"><p className="empty-copy">Opening…</p></main>}>{content}</Suspense>
       {data.session
         ? <ActiveNightNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />

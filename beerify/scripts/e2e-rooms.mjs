@@ -31,6 +31,7 @@ async function onboard(page, name) {
   await page.getByRole('button', { name: 'Female', exact: true }).click()
   await page.getByRole('button', { name: 'Next: pub credentials' }).click()
   await page.getByRole('button', { name: /Weekend athlete/ }).click()
+  await page.getByRole('checkbox').check()
   await page.getByRole('button', { name: 'Enter Beerify' }).click()
   await page.getByRole('button', { name: 'Crew', exact: true }).click()
 }
@@ -84,6 +85,27 @@ for (let i = 0; i < 8 && rows < 2; i++) {
 }
 await expect(`Ben sees both members (got ${rows})`, rows === 2)
 await expect('Ben sees Ana resting', await ben.locator('.squad__row', { hasText: 'Ana' }).getByText(/Resting/).isVisible())
+
+// Ana starts a live game; both devices submit into the same canonical round.
+await ana.getByRole('button', { name: 'Games', exact: true }).click()
+await ana.locator('.game-row', { hasText: 'Would You Rather' }).getByRole('button', { name: 'Room' }).click()
+await ana.getByRole('heading', { name: /Would You Rather/ }).waitFor()
+await ben.getByRole('button', { name: 'Games', exact: true }).click()
+await ben.getByRole('heading', { name: /Would You Rather/ }).waitFor({ timeout: 10000 })
+await ben.getByRole('button', { name: /ready/i }).click()
+await ana.waitForTimeout(1500)
+await ana.getByRole('button', { name: 'Start live round' }).click()
+await ana.locator('.game-options button').first().waitFor()
+await ben.locator('.game-options button').nth(1).click()
+await ana.locator('.game-options button').first().click()
+await ana.getByRole('heading', { name: 'Receipts' }).waitFor({ timeout: 10000 })
+await ben.clock.fastForward(2000)
+await ben.waitForTimeout(300)
+await expect('both devices complete the same live round', await ben.getByRole('heading', { name: 'Receipts' }).isVisible())
+await ana.getByRole('button', { name: 'Close game' }).click()
+await ana.getByRole('button', { name: 'Tonight', exact: true }).click()
+await ben.clock.fastForward(2000)
+await ben.locator('.app-nav__item', { hasText: 'Crew' }).click()
 
 // Ana heads out and logs a beer.
 await ana.getByRole('button', { name: 'Start the night →' }).click()

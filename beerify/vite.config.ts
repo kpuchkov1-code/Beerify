@@ -9,7 +9,7 @@ function localApi() {
       process.env.BEERIFY_LOCAL_DEV = '1'
       server.middlewares.use(async (incoming, outgoing, next) => {
         const pathname = new URL(incoming.url ?? '/', 'http://localhost').pathname
-        if (pathname !== '/api/room' && pathname !== '/api/invite') return next()
+        if (pathname !== '/api/room' && pathname !== '/api/invite' && pathname !== '/api/maps') return next()
         try {
           const chunks: Buffer[] = []
           for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
@@ -20,7 +20,7 @@ function localApi() {
             headers,
             body: incoming.method === 'GET' || incoming.method === 'HEAD' ? undefined : Buffer.concat(chunks),
           })
-          const module = await server.ssrLoadModule(pathname === '/api/room' ? '/api/room.ts' : '/api/invite.ts')
+          const module = await server.ssrLoadModule(pathname === '/api/room' ? '/api/room.ts' : pathname === '/api/maps' ? '/api/maps.ts' : '/api/invite.ts')
           const handler = module[incoming.method ?? 'GET']
           if (!handler) { outgoing.statusCode = 405; return outgoing.end() }
           const response = await handler(request)

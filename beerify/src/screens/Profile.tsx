@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { DRINKER_LEVELS, type AppData, type DrinkCategory, type DrinkIconId, type DrinkPreset, type DrinkerLevel, type Profile } from '../types'
+import { DRINKER_LEVELS, type AppData, type CoachPersonality, type DrinkCategory, type DrinkIconId, type DrinkPreset, type DrinkerLevel, type Profile, type ThemedNight } from '../types'
 import { accountEnabled, currentSession, deleteCloudAccount, sendMagicLink, signOut, supabase, syncAccountData } from '../lib/account'
 import { newId } from '../lib/storage'
 import DrinkIcon from '../components/DrinkIcon'
@@ -23,6 +23,20 @@ const CATEGORIES: { id: DrinkCategory; label: string; icon: DrinkIconId }[] = [
   { id: 'shot', label: 'Shot', icon: 'shot' },
   { id: 'soft', label: 'Low / no', icon: 'zero' },
 ]
+
+const AVATARS = ['🍺', '🍻', '🍸', '🍷', '🕺', '💃', '🪩', '🫡']
+
+async function compressAvatar(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file')
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 384 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  return canvas.toDataURL('image/webp', .76)
+}
 
 export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferences, onSavePreset, onReplaceData }: Props) {
   const [session, setSession] = useState<Session | null>(null)
@@ -87,14 +101,33 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
 
       <section className="settings-section">
         <div className="section-heading"><h2>Pub profile</h2></div>
+        <div className="avatar-editor">
+          <div className="profile-avatar" aria-label="Current avatar">{data.profile?.avatarImageData ? <img src={data.profile.avatarImageData} alt="Your profile" /> : <span>{data.profile?.avatarEmoji || '🍺'}</span>}</div>
+          <div><div className="avatar-picker" aria-label="Choose an avatar emoji">{AVATARS.map((emoji) => <button key={emoji} aria-label={`Use ${emoji} as your avatar`} aria-pressed={data.profile?.avatarEmoji === emoji && !data.profile.avatarImageData} onClick={() => data.profile && onUpdateProfile({ ...data.profile, avatarEmoji: emoji, avatarImageData: undefined })}>{emoji}</button>)}</div><label className="text-action avatar-upload">Use a photo<input className="visually-hidden" type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (!file || !data.profile) return; try { onUpdateProfile({ ...data.profile, avatarImageData: await compressAvatar(file) }) } catch { setAccountMessage('That photo could not be prepared.') } }} /></label></div>
+        </div>
         <label className="field" htmlFor="profile-edit-name"><span className="field__label">Display name</span><input id="profile-edit-name" value={data.profile?.name ?? ''} onChange={(event) => data.profile && onUpdateProfile({ ...data.profile, name: event.target.value.slice(0, 30) })} /></label>
         <div className="preset-form__measure">
           <label className="field"><span className="field__label">Age (optional)</span><input type="number" min="18" max="100" value={data.profile?.age ?? ''} placeholder="28" onChange={(event) => data.profile && onUpdateProfile({ ...data.profile, age: event.target.value ? Number(event.target.value) : undefined })} /></label>
           <label className="field"><span className="field__label">Height cm (optional)</span><input type="number" min="120" max="230" value={data.profile?.heightCm ?? ''} placeholder="175" onChange={(event) => data.profile && onUpdateProfile({ ...data.profile, heightCm: event.target.value ? Number(event.target.value) : undefined })} /></label>
         </div>
         <label className="field" htmlFor="profile-drinker-level"><span className="field__label">Pub experience</span><select id="profile-drinker-level" value={data.profile?.drinkerLevel ?? 'weekend'} onChange={(event) => data.profile && onUpdateProfile({ ...data.profile, drinkerLevel: event.target.value as DrinkerLevel })}>{DRINKER_LEVELS.map((level) => <option key={level.id} value={level.id}>{level.label}</option>)}</select></label>
-        <div className="settings-row"><span><strong>Haptic taps</strong><small>Feel each drink land</small></span><input type="checkbox" role="switch" checked={data.preferences.haptics} onChange={(event) => onUpdatePreferences({ haptics: event.target.checked })} /></div>
-        <div className="settings-row"><span><strong>Reduce motion</strong><small>Quieter countdowns and reactions</small></span><input type="checkbox" role="switch" checked={data.preferences.reducedMotion} onChange={(event) => onUpdatePreferences({ reducedMotion: event.target.checked })} /></div>
+        <div className="settings-row"><span><strong>Haptic taps</strong><small>Feel each drink land</small></span><input aria-label="Haptic taps" type="checkbox" role="switch" checked={data.preferences.haptics} onChange={(event) => onUpdatePreferences({ haptics: event.target.checked })} /></div>
+        <div className="settings-row"><span><strong>Reduce motion</strong><small>Quieter countdowns and reactions</small></span><input aria-label="Reduce motion" type="checkbox" role="switch" checked={data.preferences.reducedMotion} onChange={(event) => onUpdatePreferences({ reducedMotion: event.target.checked })} /></div>
+        <div className="settings-row"><span><strong>Big-thumb mode</strong><small>Larger drink and game controls</small></span><input aria-label="Big-thumb mode" type="checkbox" role="switch" checked={data.preferences.bigThumbMode} onChange={(event) => onUpdatePreferences({ bigThumbMode: event.target.checked })} /></div>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-heading"><h2>Night personality</h2></div>
+        <label className="field"><span className="field__label">Coach voice</span><select value={data.preferences.coachPersonality} onChange={(event) => onUpdatePreferences({ coachPersonality: event.target.value as CoachPersonality })}><option value="friend">Supportive friend</option><option value="elder">Wise pub elder</option><option value="gremlin">Chaotic gremlin</option></select></label>
+        <label className="field"><span className="field__label">Night accent</span><select value={data.preferences.themedNight} onChange={(event) => onUpdatePreferences({ themedNight: event.target.value as ThemedNight })}><option value="classic">Bottle green</option><option value="halloween">Halloween</option><option value="new-year">New Year</option><option value="birthday">Birthday</option><option value="st-patrick">St Patrick’s</option></select></label>
+        <label className="field"><span className="field__label">Default game spice · {data.preferences.spiciness}/5</span><input type="range" min="1" max="5" step="1" value={data.preferences.spiciness} onChange={(event) => onUpdatePreferences({ spiciness: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 })} /></label>
+      </section>
+
+      <section className="settings-section">
+        <div className="section-heading"><h2>Ride home</h2></div>
+        <label className="field"><span className="field__label">Ride provider URL</span><input type="url" inputMode="url" value={data.preferences.rideHomeUrl} placeholder="https://m.uber.com/ul/" onChange={(event) => onUpdatePreferences({ rideHomeUrl: event.target.value.slice(0, 500) })} /></label>
+        <label className="field"><span className="field__label">Home address</span><textarea rows={2} value={data.preferences.homeAddress} placeholder="Used only to build the ride link on this device" onChange={(event) => onUpdatePreferences({ homeAddress: event.target.value.slice(0, 240) })} /></label>
+        <p>Your address stays in this device’s Beerify storage and is only handed to your ride provider when you tap the link.</p>
       </section>
 
       <section className="settings-section">
@@ -143,6 +176,8 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
       </section>
 
       <section className="settings-section"><div className="section-heading"><h2>Your data</h2></div><button className="settings-action" onClick={exportData}>Export Beerify data <span>↓</span></button></section>
+
+      <section className="settings-section"><div className="section-heading"><h2>Help & legal</h2></div><a className="settings-action" href="/support.html" target="_blank">Support <span>↗</span></a><a className="settings-action" href="/privacy.html" target="_blank">Privacy & safety <span>↗</span></a><p>Beerify estimates are not medical advice and never determine whether you can drive. If in doubt, do not drive.</p></section>
 
       <dialog className="native-dialog" ref={deleteDialog} aria-labelledby="delete-account-title">
         <div className="dialog-sheet">
