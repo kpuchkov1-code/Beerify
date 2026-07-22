@@ -10,6 +10,7 @@ import { queueRoomDrink, sendRoomEvent, useRoom } from '../lib/room'
 import { MemberRow } from '../components/Squad'
 import { nativeTap } from '../lib/native'
 import RoomCountdown from '../components/RoomCountdown'
+import AppIcon from '../components/AppIcon'
 
 interface Props {
   session: NightSession
@@ -129,7 +130,7 @@ export default function NightOut({ session, profile, preferences, membership, on
       <header className="night-bar">
         <div><span>{displayTarget} · {session.nightMode === 'group' ? 'Squad' : 'Solo'}</span><strong>{formatUnits(totalUnits)}u · {session.drinks.length} drinks</strong></div>
         <div className="night-bar__bac"><span>LIKELY</span><strong>{bac.toFixed(3).replace(/^0/, '')}</strong></div>
-        <button className="icon-btn icon-btn--light" aria-label="End the night" onClick={() => endDialog.current?.showModal()}>×</button>
+        <button className="icon-btn icon-btn--light" aria-label="End the night" onClick={() => endDialog.current?.showModal()}><AppIcon name="close" /></button>
       </header>
 
       <section className="night-stage">
@@ -137,11 +138,11 @@ export default function NightOut({ session, profile, preferences, membership, on
         <BeerMeter bac={bac} incoming={incoming} target={{ ...target, label: displayTarget }} status={status} />
         <p className="bac-range">Plausible now: {bacRange.low.toFixed(3).replace(/^0/, '')}–{bacRange.high.toFixed(3).replace(/^0/, '')}% · {bacRange.model === 'watson' ? 'personalised model' : 'basic profile range'}</p>
         </>}
-        <div className={`hype-mate hype-mate--${coach.tone}`} role="status" aria-live="polite">
-          <span className="hype-mate__badge">HYPE<br />MATE</span>
+        <div className={`coach-panel coach-panel--${coach.tone}`} role="status" aria-live="polite">
+          <span className="coach-panel__icon"><AppIcon name="chart" /></span>
           <div><p>{coach.text}</p>{coach.tip && <small>{coach.tip}</small>}</div>
         </div>
-        {rideUrl && <a className="ride-home-link" href={rideUrl} target="_blank" rel="noreferrer">Get a ride home <span>↗</span></a>}
+        {rideUrl && <a className="ride-home-link" href={rideUrl} target="_blank" rel="noreferrer">Get a ride home <AppIcon name="external" size={20} /></a>}
       </section>
 
       {session.nightMode === 'group' && !membership && <section className="group-reconnect"><div><strong>Squad connection lost</strong><small>Your night is still in Squad mode. Rejoin once to resume shared drinks, games and crawl.</small></div><button className="btn btn--secondary" onClick={onOpenCrew}>Reconnect</button></section>}
@@ -153,7 +154,7 @@ export default function NightOut({ session, profile, preferences, membership, on
           <div className="night-crew-actions">
             <button disabled={Boolean(roomBusy)} aria-busy={roomBusy === 'reaction'} onClick={() => void roomAction('reaction', { reaction: 'cheers' })}>🍻 Cheers</button>
             <button disabled={Boolean(roomBusy)} aria-busy={roomBusy === 'cheers-countdown'} onClick={() => void roomAction('cheers-countdown')}>{roomBusy === 'cheers-countdown' ? 'Calling…' : '⏱ Drink up'}</button>
-            <button disabled={Boolean(room.activeRound || roomBusy)} aria-busy={roomBusy === 'round-invite'} onClick={() => void roomAction('round-invite')}>{room.activeRound ? 'Round open' : roomBusy === 'round-invite' ? 'Opening…' : '＋ Next round'}</button>
+            <button disabled={Boolean(room.activeRound || roomBusy)} aria-busy={roomBusy === 'round-invite'} onClick={() => void roomAction('round-invite')}>{room.activeRound ? 'Round open' : roomBusy === 'round-invite' ? 'Opening…' : <><AppIcon name="plus" size={17} />Next round</>}</button>
           </div>
         </section>
       )}
@@ -164,16 +165,16 @@ export default function NightOut({ session, profile, preferences, membership, on
         {alcoholLocked ? <p className="mode-lock-copy">Alcohol logging is locked for this night. Waters still count.</p> : <div className="quick-log__grid">
           {quick.map((preset) => (
             <button key={preset.id} className="quick-drink" onClick={() => log(preset.id)} aria-label={`Log ${preset.brand || preset.name}`}>
-              <DrinkIcon icon={preset.icon} size={48} logoUrl={preset.logoUrl} brand={preset.brand} />
+              <span className="quick-drink__art"><DrinkIcon icon={preset.icon} size={48} logoUrl={preset.logoUrl} brand={preset.brand} /></span>
               <span><strong>{preset.brand || preset.name}</strong><small>{preset.detail}</small></span>
               {burst && session.drinks.at(-1)?.presetId === preset.id && <span className="quick-drink__burst" aria-hidden="true">+1</span>}
             </button>
           ))}
         </div>}
         <div className="quick-log__utility">
-          <button onClick={water}>💧 <span>Water</span></button>
-          <button disabled={!session.drinks.length} onClick={() => session.drinks.at(-1) && log(session.drinks.at(-1)!.presetId)}>↻ <span>Repeat last</span></button>
-          <button disabled={!session.drinks.length} onClick={onUndo}>↶ <span>Undo</span></button>
+          <button onClick={water}><AppIcon name="water" size={20} /><span>Water</span></button>
+          <button disabled={!session.drinks.length} onClick={() => session.drinks.at(-1) && log(session.drinks.at(-1)!.presetId)}><AppIcon name="repeat" size={20} /><span>Repeat last</span></button>
+          <button disabled={!session.drinks.length} onClick={onUndo}><AppIcon name="undo" size={20} /><span>Undo</span></button>
         </div>
       </section>
 
@@ -188,19 +189,19 @@ export default function NightOut({ session, profile, preferences, membership, on
 
       <dialog ref={drinksDialog} className="native-dialog drink-dialog" aria-labelledby="all-drinks-title">
         <div className="dialog-sheet dialog-sheet--tall">
-          <div className="dialog-heading"><div><h2 id="all-drinks-title">{drinkType ? 'Which brand?' : 'What did you drink?'}</h2><p>{drinkType ? drinkType.name : 'Pick the drink first. Brand comes next.'}</p></div><button className="icon-btn" aria-label="Close drinks" onClick={() => drinksDialog.current?.close()}>×</button></div>
+          <div className="dialog-heading"><div><h2 id="all-drinks-title">{drinkType ? 'Which brand?' : 'What did you drink?'}</h2><p>{drinkType ? drinkType.name : 'Pick the drink first. Brand comes next.'}</p></div><button className="icon-btn" aria-label="Close drinks" onClick={() => drinksDialog.current?.close()}><AppIcon name="close" /></button></div>
           {drinkType ? (
             <div className="brand-step">
-              <button className="brand-step__back" onClick={() => setDrinkType(null)}>← Change drink</button>
+              <button className="brand-step__back" onClick={() => setDrinkType(null)}><AppIcon name="arrow-left" size={18} />Change drink</button>
               <div className="drink-catalogue">
                 {brands.map((preset) => {
                   const favorite = preferences.favoritePresetIds.includes(preset.id)
-                  return <div className="catalogue-row" key={preset.id}><button className="catalogue-row__main" onClick={() => { log(preset.id); drinksDialog.current?.close() }}><DrinkIcon icon={preset.icon} size={38} logoUrl={preset.logoUrl} brand={preset.brand} /><span><strong>{preset.brand}</strong><small>{preset.name} · {preset.detail}</small></span><span>{formatUnits(preset.volumeMl * preset.abv * 0.789 / 8)}u</span></button><button className="catalogue-row__star" aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.brand} ${favorite ? 'from' : 'to'} favourites`} aria-pressed={favorite} onClick={() => onToggleFavorite(preset.id)}>{favorite ? '★' : '☆'}</button></div>
+                  return <div className="catalogue-row" key={preset.id}><button className="catalogue-row__main" onClick={() => { log(preset.id); drinksDialog.current?.close() }}><DrinkIcon icon={preset.icon} size={38} logoUrl={preset.logoUrl} brand={preset.brand} /><span><strong>{preset.brand}</strong><small>{preset.name} · {preset.detail}</small></span><span>{formatUnits(preset.volumeMl * preset.abv * 0.789 / 8)}u</span></button><button className="catalogue-row__star" aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.brand} ${favorite ? 'from' : 'to'} favourites`} aria-pressed={favorite} onClick={() => onToggleFavorite(preset.id)}><AppIcon name="star" size={22} /></button></div>
                 })}
                 <button className="other-brand" onClick={() => { log(drinkType.id); drinksDialog.current?.close() }}>
                   <DrinkIcon icon={drinkType.icon} size={38} />
                   <span><strong>Other brand</strong><small>Use the standard {drinkType.detail.toLowerCase()} pour</small></span>
-                  <span>→</span>
+                  <AppIcon name="chevron-right" size={20} />
                 </button>
               </div>
             </div>
@@ -213,7 +214,7 @@ export default function NightOut({ session, profile, preferences, membership, on
       </dialog>
 
       <dialog ref={editDialog} className="native-dialog" aria-labelledby="edit-drink-title">
-        {editing && <div className="dialog-sheet"><div className="dialog-heading"><div><h2 id="edit-drink-title">Correct this drink</h2><p>Fixing the pour makes every estimate better.</p></div><button className="icon-btn" aria-label="Close edit drink" onClick={() => editDialog.current?.close()}>×</button></div>
+        {editing && <div className="dialog-sheet"><div className="dialog-heading"><div><h2 id="edit-drink-title">Correct this drink</h2><p>Fixing the pour makes every estimate better.</p></div><button className="icon-btn" aria-label="Close edit drink" onClick={() => editDialog.current?.close()}><AppIcon name="close" /></button></div>
           <label className="field"><span className="field__label">Brand</span><input value={editing.brand ?? ''} onChange={(event) => setEditing({ ...editing, brand: event.target.value || undefined })} /></label>
           <div className="preset-form__measure"><label className="field"><span className="field__label">Millilitres</span><input type="number" min="5" max="5000" value={editing.volumeMl} onChange={(event) => setEditing({ ...editing, volumeMl: Number(event.target.value) })} /></label><label className="field"><span className="field__label">ABV %</span><input type="number" min="0" max="100" step="0.1" value={Number((editing.abv * 100).toFixed(1))} onChange={(event) => setEditing({ ...editing, abv: Number(event.target.value) / 100 })} /></label></div>
           <label className="field"><span className="field__label">Minutes ago</span><input type="number" min="0" max="720" value={minutesAgo} onChange={(event) => setMinutesAgo(event.target.value)} /></label>
@@ -225,7 +226,7 @@ export default function NightOut({ session, profile, preferences, membership, on
         <div className="dialog-sheet">
           <span className="dialog-mark" aria-hidden="true">▤</span>
           <h2 id="end-night-title">Close tonight's tab?</h2>
-          <p>The full receipt, peak and group evidence will move into History.</p>
+          <p>The full receipt, peak and group evidence will move into Your nights.</p>
           <button className="btn btn--primary" onClick={() => onEndNight(room)}>End night and make recap</button>
           <button className="btn btn--quiet" autoFocus onClick={() => endDialog.current?.close()}>Keep the tab open</button>
         </div>

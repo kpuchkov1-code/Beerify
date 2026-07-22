@@ -12,20 +12,7 @@ interface Props {
 }
 
 export default function Crew({ profile, membership, session, initialCode, onJoin, onLeave, onOpenTonight }: Props) {
-  if (!session) return (
-    <main className="screen crew-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">START TOGETHER</span><h1>Crew starts with the night</h1><p>Choose Squad in Tonight, then create or join once. The connection will stay fixed until your recap.</p></header>
-      <button className="btn btn--primary btn--big" onClick={onOpenTonight}>Set up tonight →</button>
-    </main>
-  )
-
-  if (session.nightMode === 'solo') return (
-    <main className="screen crew-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">SOLO NIGHT</span><h1>You chose solo</h1><p>Crew stays off for this night. Your drinks, local games and crawl still work normally.</p></header>
-      <p className="locked-room-copy">Solo or Squad is chosen once so the rest of the night never changes underneath you.</p>
-      <button className="btn btn--primary" onClick={onOpenTonight}>Back to drinks</button>
-    </main>
-  )
+  if (!session || session.nightMode !== 'group') return null
 
   return (
     <main className="screen crew-screen">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DRINKER_LEVELS, type DrinkerLevel, type Profile, type Sex } from '../types'
 import { newId } from '../lib/storage'
+import AppIcon from '../components/AppIcon'
 
 interface Props { onDone: (profile: Profile) => void }
 
@@ -30,11 +31,13 @@ export default function Onboarding({ onDone }: Props) {
           <span>BEERIFY</span>
         </div>
         <div className="onboarding__hero">
-          <p className="display-copy">The night out group chat, but useful.</p>
-          <p className="lead">Open a room, log the order, sort the next round and find out how battered everyone is.</p>
+          <p className="display-copy">Make a good night easier.</p>
+          <p className="lead">Track drinks, plan the crawl and keep the whole squad on the same page.</p>
         </div>
-        <div className="onboarding__ticker" aria-label="Beerify features">
-          <span>LIVE ROOMS</span><span>ROUND ROTA</span><span>DRINK MOMENTS</span><span>NIGHT RECAPS</span>
+        <div className="onboarding-features" aria-label="Beerify features">
+          <div><span><AppIcon name="beer" /></span><p><strong>Track as you go</strong><small>Log favourites with one tap and keep an eye on your estimate.</small></p></div>
+          <div><span><AppIcon name="users" /></span><p><strong>Bring the squad</strong><small>Share games, reactions and a single crawl across your phones.</small></p></div>
+          <div><span><AppIcon name="receipt" /></span><p><strong>Keep the recap</strong><small>Every drink, record and award lands in Your nights.</small></p></div>
         </div>
         <button className="btn btn--primary btn--big" onClick={() => setStep(1)}>Set up my night</button>
         <p className="fine-print">Estimates are for the story, not a breathalyser.</p>
@@ -46,8 +49,8 @@ export default function Onboarding({ onDone }: Props) {
     return (
       <main className="screen onboarding onboarding--persona">
         <header className="page-header">
-          <button className="icon-btn" aria-label="Back" onClick={() => setStep(1)}>←</button>
-          <div><span className="page-kicker">2 OF 2</span><h1>Be honest-ish</h1><p>What kind of shift are you usually working?</p></div>
+          <button className="icon-btn" aria-label="Back" onClick={() => setStep(1)}><AppIcon name="arrow-left" /></button>
+          <div><span className="page-kicker">2 OF 2</span><h1>Your usual pace</h1><p>This helps Beerify tune the shortcuts and coaching.</p></div>
         </header>
         <fieldset className="field fieldset-reset">
           <legend className="field__label">Your pub experience</legend>
@@ -59,12 +62,12 @@ export default function Onboarding({ onDone }: Props) {
                 aria-pressed={drinkerLevel === option.id}
                 onClick={() => setDrinkerLevel(option.id)}
               >
-                <strong>{option.label}</strong><span>{option.detail}</span>
+                <span><strong>{option.label}</strong><small>{option.detail}</small></span><AppIcon name="check" size={20} />
               </button>
             ))}
           </div>
         </fieldset>
-        <p className="persona-note">This changes the banter and shortcuts, not the BAC maths.</p>
+        <p className="persona-note">This changes the shortcuts and coaching, not the BAC maths.</p>
         <label className="legal-age-confirm">
           <input type="checkbox" checked={legalAge} onChange={(event) => setLegalAge(event.target.checked)} />
           <span><strong>I am at least 18</strong><small>I confirm I am also of legal drinking age where I live.</small></span>
@@ -85,8 +88,8 @@ export default function Onboarding({ onDone }: Props) {
   return (
     <main className="screen onboarding">
       <header className="page-header">
-        <button className="icon-btn" aria-label="Back" onClick={() => setStep(0)}>←</button>
-        <div><span className="page-kicker">1 OF 2</span><h1>Your pub profile</h1><p>The useful bits first. Your dignity comes next.</p></div>
+        <button className="icon-btn" aria-label="Back" onClick={() => setStep(0)}><AppIcon name="arrow-left" /></button>
+        <div><span className="page-kicker">1 OF 2</span><h1>Your profile</h1><p>A few details make the estimate more useful.</p></div>
       </header>
 
       <label className="field" htmlFor="profile-name">
@@ -118,7 +121,7 @@ export default function Onboarding({ onDone }: Props) {
         </div>
       </details>
 
-      <button className="btn btn--primary btn--big" disabled={!name.trim() || !weightValid || !sex || (age !== '' && (Number(age) < 18 || Number(age) > 100)) || (height !== '' && (Number(height) < 120 || Number(height) > 230))} onClick={() => setStep(2)}>Next: pub credentials</button>
+      <button className="btn btn--primary btn--big" disabled={!name.trim() || !weightValid || !sex || (age !== '' && (Number(age) < 18 || Number(age) > 100)) || (height !== '' && (Number(height) < 120 || Number(height) > 230))} onClick={() => setStep(2)}>Continue</button>
     </main>
   )
 }

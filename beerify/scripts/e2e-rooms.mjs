@@ -29,7 +29,7 @@ async function onboard(page, name) {
   await page.getByPlaceholder('Name or nickname').fill(name)
   await page.getByPlaceholder('72').fill('75')
   await page.getByRole('button', { name: 'Female', exact: true }).click()
-  await page.getByRole('button', { name: 'Next: pub credentials' }).click()
+  await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: /Weekend athlete/ }).click()
   await page.getByRole('checkbox').check()
   await page.getByRole('button', { name: 'Enter Beerify' }).click()
@@ -74,9 +74,10 @@ await ana.getByRole('button', { name: 'Create squad' }).click()
 await ana.getByText('Squad connected').waitFor({ timeout: 15000 })
 const code = await ana.evaluate(() => JSON.parse(localStorage.getItem('beerify:v2')).room.code)
 await expect(`Ana got a room code (${code})`, /^[A-Z2-9]{6}$/.test(code ?? ''))
-await ana.getByRole('button', { name: 'Start squad night →' }).click()
+await ana.getByRole('button', { name: 'Start squad night' }).click()
 await ana.locator('.night-bar').waitFor({ timeout: 15000 })
 await expect('Ana squad mode is locked into the active night', await ana.locator('.night-bar').getByText(/Squad/).isVisible())
+await expect('Squad navigation is Drinks, Games, Pubs, Crew and You', await ana.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button').allTextContents().then((labels) => labels.join('|') === 'Drinks|Games|Pubs|Crew|You'))
 const protocol = await ana.evaluate(async () => {
   const membership = JSON.parse(localStorage.getItem('beerify:v2')).room
   const post = (body) => fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...membership, ...body }) })
@@ -97,9 +98,9 @@ await ben.getByRole('button', { name: /^Squad/ }).click()
 await ben.getByLabel('Squad code').fill(code)
 await ben.getByRole('button', { name: 'Join', exact: true }).click()
 await ben.getByText('Squad connected').waitFor({ timeout: 15000 })
-await ben.getByRole('button', { name: 'Start squad night →' }).click()
+await ben.getByRole('button', { name: 'Start squad night' }).click()
 await expect('Ben starts in the same persistent squad context', await ben.locator('.night-bar').getByText(/Squad/).isVisible())
-await ben.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
+await ben.locator('.primary-nav__item', { hasText: 'Crew' }).click()
 await ben.locator('.room-ticket').waitFor({ timeout: 15000 })
 
 // Ben should soon see both members (poll runs every 30s on his mocked clock).
@@ -113,12 +114,10 @@ await expect(`Ben sees both members (got ${rows})`, rows === 2)
 await expect('Ben sees Ana active in the squad night', await ben.locator('.squad__row', { hasText: 'Ana' }).getByText(/0 drinks/).isVisible())
 
 // The host draft is already canonical; Ben receives that same stop order.
-await ana.getByRole('button', { name: 'More', exact: true }).click()
-await ana.getByRole('button', { name: /Pubs/ }).click()
+await ana.getByRole('button', { name: 'Pubs', exact: true }).click()
 await ana.locator('.crawl-stop').first().waitFor({ timeout: 10000 })
 await expect('host draft seeds the shared crawl', await ana.locator('.crawl-stop').count() === 3)
-await ben.getByRole('button', { name: 'More', exact: true }).click()
-await ben.getByRole('button', { name: /Pubs/ }).click()
+await ben.getByRole('button', { name: 'Pubs', exact: true }).click()
 let crawlCount = 0
 for (let i = 0; i < 6 && crawlCount !== 3; i++) {
   await ben.clock.fastForward(6000)
@@ -153,12 +152,12 @@ await expect('both devices complete the same live round', await ben.getByRole('h
 await ana.getByRole('button', { name: 'Close game' }).click()
 await ana.getByRole('button', { name: 'Drinks', exact: true }).click()
 await ben.clock.fastForward(2000)
-await ben.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
+await ben.locator('.primary-nav__item', { hasText: 'Crew' }).click()
 
 // Ana logs a beer; the already-selected Squad context carries it into the room.
 await ana.getByRole('button', { name: 'Log Guinness' }).click()
 await ana.waitForTimeout(2500) // real clock: push fires 400ms after the tap
-await ana.locator('.active-night-nav__item', { hasText: 'Crew' }).click()
+await ana.locator('.primary-nav__item', { hasText: 'Crew' }).click()
 await ana.locator('.room-ticket').waitFor({ timeout: 15000 })
 await expect('Ana can open the full room without ending her night', !(await ana.getByRole('heading', { name: 'Ready to start?' }).isVisible().catch(() => false)))
 await expect('Ana stays active after switching to Crew', await ana.locator('.squad__row', { hasText: 'Ana' }).getByText(/1 drink/).isVisible())
@@ -188,20 +187,23 @@ await ben.evaluate(() => {
 })
 await ben.reload()
 await ben.getByText('Squad connection lost').waitFor({ timeout: 10000 })
-await expect('rejected credentials become a recoverable squad connection state', await ben.getByRole('button', { name: 'Reconnect' }).isVisible())
-await ben.getByRole('button', { name: 'Reconnect' }).click()
+await expect('rejected credentials become a recoverable squad connection state', await ben.getByRole('button', { name: 'Reconnect', exact: true }).isVisible())
+await expect('rejected credentials keep Crew in the fourth slot', await ben.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button').allTextContents().then((labels) => labels.join('|') === 'Drinks|Games|Pubs|Crew|You'))
+await ben.getByRole('button', { name: 'Reconnect', exact: true }).click()
 await ben.getByRole('button', { name: 'Join', exact: true }).click()
 await ben.locator('.room-ticket').waitFor({ timeout: 10000 })
 await expect('Ben can rejoin the same room with a fresh room identity', await ben.locator('.room-ticket').getByText(code).isVisible())
 
 // Cleanup: ending each night closes its squad membership automatically.
-await ana.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
+await ana.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
 await ana.getByRole('button', { name: 'End the night' }).click()
 await ana.getByRole('button', { name: /End night and make recap/ }).click()
-await ben.getByRole('navigation', { name: 'Active night navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
+await ben.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Drinks', exact: true }).click()
 await ben.getByRole('button', { name: 'End the night' }).click()
 await ben.getByRole('button', { name: /End night and make recap/ }).click()
 await expect('ending the night clears room credentials on both devices', await ana.evaluate(() => JSON.parse(localStorage.getItem('beerify:v2')).room === null) && await ben.evaluate(() => JSON.parse(localStorage.getItem('beerify:v2')).room === null))
+await ana.getByRole('heading', { name: 'Your nights' }).waitFor()
+await expect('ending a Squad night opens Nights with the standard navigation', await ana.getByRole('heading', { name: 'Your nights' }).isVisible() && await ana.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button').allTextContents().then((labels) => labels.join('|') === 'Tonight|Games|Pubs|Nights|You'))
 
 await browser.close()
 if (fails.length) {

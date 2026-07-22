@@ -4,6 +4,7 @@ import { allPresets, TARGETS, TARGET_ORDER } from '../lib/drinks'
 import { formatNightDate, formatUnits } from '../lib/format'
 import DrinkIcon from '../components/DrinkIcon'
 import RoomSetup from '../components/RoomSetup'
+import AppIcon from '../components/AppIcon'
 import { useRoom } from '../lib/room'
 
 interface Props {
@@ -54,14 +55,14 @@ export default function Home({ profile, history, preferences, membership, planne
           <legend>Who are you out with?</legend>
           <div className="night-mode-picker__options">
             <button type="button" aria-pressed={nightMode === 'solo'} onClick={() => setNightMode('solo')}>
-              <span className="night-mode-picker__icon" aria-hidden="true">●</span>
+              <span className="night-mode-picker__icon"><AppIcon name="moon" /></span>
               <span className="night-mode-picker__copy"><strong>Solo</strong><small>Your phone, your crawl and local games</small></span>
-              <span className="night-mode-picker__check" aria-hidden="true">✓</span>
+              <span className="night-mode-picker__check"><AppIcon name="check" size={18} /></span>
             </button>
             <button type="button" aria-pressed={nightMode === 'group'} onClick={() => setNightMode('group')}>
-              <span className="night-mode-picker__icon" aria-hidden="true">♟</span>
+              <span className="night-mode-picker__icon"><AppIcon name="users" /></span>
               <span className="night-mode-picker__copy"><strong>Squad</strong><small>Shared crew, games, crawl and scores</small></span>
-              <span className="night-mode-picker__check" aria-hidden="true">✓</span>
+              <span className="night-mode-picker__check"><AppIcon name="check" size={18} /></span>
             </button>
           </div>
           <p>Your choice stays fixed until the recap.</p>
@@ -81,13 +82,13 @@ export default function Home({ profile, history, preferences, membership, planne
         </fieldset>
         {participationMode === 'drinking' && <>
         <div className="section-heading"><h2 id="vibe-title">Tonight's setting</h2><span>{TARGETS[target].emoji}</span></div>
-        <div className="target-picker" aria-labelledby="vibe-title">{TARGET_ORDER.map((id, index) => <button key={id} aria-pressed={target === id} onClick={() => setTarget(id)}><span>{index + 1}</span><strong>{TARGETS[id].label}</strong></button>)}</div>
+        <div className="target-picker" aria-labelledby="vibe-title">{TARGET_ORDER.map((id, index) => <button key={id} aria-label={`${index + 1}. ${TARGETS[id].label}`} aria-pressed={target === id} onClick={() => setTarget(id)}><span>{index + 1}</span></button>)}</div>
         <p className="target-picker__detail"><span aria-hidden="true">{TARGETS[target].emoji}</span><strong>{TARGETS[target].label}</strong> — {TARGETS[target].tagline}</p>
         <fieldset className="meal-picker fieldset-reset"><legend>Drinking on</legend><div>{([['empty', 'Empty'], ['snack', 'A snack'], ['meal', 'A meal'], ['unknown', 'Not sure']] as const).map(([id, label]) => <button key={id} aria-pressed={meal === id} className={meal === id ? 'chip chip--active' : 'chip'} onClick={() => setMeal(id)}>{label}</button>)}</div></fieldset>
         </>}
         {participationMode !== 'drinking' && <p className="mode-note">{participationMode === 'driver' ? 'Water-only logging. Your designated-driver badge unlocks after 45 minutes.' : 'Alcohol logging stays locked while waters and the night itself still count.'}</p>}
-        {plannedStops > 0 && <p className="draft-handoff">⌖ {nightMode === 'group' && !membership?.isHost ? `Your ${plannedStops}-stop draft stays saved; this squad’s route wins.` : `${plannedStops} planned stop${plannedStops === 1 ? '' : 's'} will come with you.`}</p>}
-        <button className="btn btn--primary btn--big" disabled={!groupReady || starting} aria-describedby={!groupReady ? 'group-start-help' : undefined} onClick={async () => { setStarting(true); setStartError(''); try { await onStartNight(target, meal, participationMode, nightMode) } catch (error) { setStartError(error instanceof Error ? error.message : 'Could not start the night') } finally { setStarting(false) } }}>{starting ? 'Starting…' : `Start ${nightMode === 'group' ? 'squad' : 'solo'} night →`}</button>
+        {plannedStops > 0 && <p className="draft-handoff"><AppIcon name="location" size={18} />{nightMode === 'group' && !membership?.isHost ? `Your ${plannedStops}-stop draft stays saved; this squad’s route wins.` : `${plannedStops} planned stop${plannedStops === 1 ? '' : 's'} will come with you.`}</p>}
+        <button className="btn btn--primary btn--big" disabled={!groupReady || starting} aria-describedby={!groupReady ? 'group-start-help' : undefined} onClick={async () => { setStarting(true); setStartError(''); try { await onStartNight(target, meal, participationMode, nightMode) } catch (error) { setStartError(error instanceof Error ? error.message : 'Could not start the night') } finally { setStarting(false) } }}>{starting ? 'Starting…' : `Start ${nightMode === 'group' ? 'squad' : 'solo'} night`}</button>
         {!groupReady && <p id="group-start-help" className="start-help">{membership ? 'Checking the squad connection…' : 'Create or join a squad above to start.'}</p>}
         {startError && <p className="status-message" role="alert">{startError}</p>}
       </section>
@@ -115,7 +116,7 @@ export default function Home({ profile, history, preferences, membership, planne
         <button className="night-receipt-preview" onClick={() => onOpenSummary(recent)}>
           <span><small>LAST NIGHT</small><strong>{formatNightDate(recent.startedAt)}</strong></span>
           <span>{TARGETS[recent.targetId].label} · {recent.drinks.length} drinks</span>
-          <span aria-hidden="true">→</span>
+          <AppIcon name="chevron-right" size={20} />
         </button>
       )}
 

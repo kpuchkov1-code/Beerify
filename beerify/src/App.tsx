@@ -9,15 +9,13 @@ import Home from './screens/Home'
 import NightOut from './screens/NightOut'
 import Crew from './screens/Crew'
 import AgeConfirm from './screens/AgeConfirm'
-import AppNav, { type AppTab } from './components/AppNav'
-import ActiveNightNav from './components/ActiveNightNav'
+import PrimaryNav, { type PrimaryTab } from './components/PrimaryNav'
 
 const Summary = lazy(() => import('./screens/Summary'))
-const History = lazy(() => import('./screens/History'))
+const Nights = lazy(() => import('./screens/Nights'))
 const ProfileScreen = lazy(() => import('./screens/Profile'))
 const Games = lazy(() => import('./screens/Games'))
 const Pubs = lazy(() => import('./screens/Pubs'))
-const Stats = lazy(() => import('./screens/Stats'))
 
 const INITIAL_PARAMS = new URLSearchParams(location.search)
 const INITIAL_ROOM_CODE = /^[A-Z2-9]{6}$/.test(INITIAL_PARAMS.get('room')?.toUpperCase() ?? '')
@@ -30,7 +28,7 @@ export default function App() {
   const [data, setData] = useState<AppData>(loadData)
   const [viewingSummary, setViewingSummary] = useState<NightSession | null>(null)
   const invitedCode = INITIAL_ROOM_CODE
-  const [tab, setTab] = useState<AppTab>('tonight')
+  const [tab, setTab] = useState<PrimaryTab>('tonight')
   const screenKey = !data.profile ? 'setup' : !data.profile.legalAgeConfirmedAt ? 'age' : viewingSummary?.id ?? (data.session ? `night-${tab}` : tab)
 
   useEffect(() => saveData(data), [data])
@@ -38,6 +36,10 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 })
   }, [screenKey])
+
+  useEffect(() => {
+    if (tab === 'crew' && data.session?.nightMode !== 'group') setTab(data.session ? 'tonight' : 'nights')
+  }, [data.session, tab])
 
   useEffect(() => {
     if (OPENED_INVITE) trackMetric('invite_opened')
@@ -92,7 +94,7 @@ export default function App() {
   }, [data.room])
 
   useEffect(() => {
-    const warm = () => { void import('./screens/History'); void import('./screens/Summary') }
+    const warm = () => { void import('./screens/Nights'); void import('./screens/Summary') }
     if (typeof window.requestIdleCallback === 'function') {
       const idle = window.requestIdleCallback(warm, { timeout: 4_000 })
       return () => window.cancelIdleCallback(idle)
@@ -197,7 +199,7 @@ export default function App() {
       }
       return { ...current, room: null, session: null, history: [...current.history, ended] }
     })
-    setTab('history')
+    setTab('nights')
   }
 
   function joinRoom(room: RoomMembership) {
@@ -210,7 +212,7 @@ export default function App() {
 
   function clearRoom() {
     setData((current) => ({ ...current, room: null }))
-    if (data.session) setTab('tonight')
+    if (data.session?.nightMode === 'group') setTab('crew')
   }
 
   function discardRoom() {
@@ -286,18 +288,14 @@ export default function App() {
         ? <Games nightMode={data.session?.nightMode ?? 'solo'} membership={activeMembership} room={null} spiciness={data.preferences.spiciness} onSpiciness={(spiciness) => updatePreferences({ spiciness })} onOpenCrew={() => setTab('crew')} />
         : tab === 'pubs'
           ? <Pubs session={data.session} membership={activeMembership} draft={data.pubCrawlDraft} reducedMotion={data.preferences.reducedMotion} onDraftChange={updateDraftCrawl} onCrawlChange={updateCrawl} onOpenCrew={() => setTab('crew')} />
-          : tab === 'stats'
-            ? <Stats history={data.history} profile={data.profile} />
-      : tab === 'history'
-        ? <History history={data.history} onOpenSummary={openSummary} />
-        : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />
+          : tab === 'nights'
+            ? <Nights history={data.history} profile={data.profile} onOpenSummary={openSummary} />
+            : <ProfileScreen data={data} onUpdateProfile={updateProfile} onUpdatePreferences={updatePreferences} onSavePreset={updatePreset} onReplaceData={setData} />
 
   return (
     <div data-theme={data.preferences.themedNight} className={`${data.session ? 'active-night-shell' : 'app-shell'}${data.preferences.bigThumbMode ? ' big-thumb-mode' : ''}`}>
       <Suspense fallback={<main className="screen"><p className="empty-copy">Opening…</p></main>}>{content}</Suspense>
-      {data.session
-        ? <ActiveNightNav active={tab} onChange={setTab} nightMode={data.session.nightMode} roomActive={Boolean(activeMembership)} />
-        : <AppNav active={tab} onChange={setTab} roomActive={Boolean(data.room)} />}
+      <PrimaryNav active={tab} session={data.session} roomActive={Boolean(activeMembership)} onChange={setTab} />
     </div>
   )
 }

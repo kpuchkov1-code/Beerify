@@ -72,7 +72,7 @@ Guests do not need an account. To enable passwordless sync, create a Supabase pr
 | `SUPABASE_URL` | Server | Project URL used for account deletion |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only | Deletes an authenticated account; never expose to Vite |
 
-Without these variables the Profile screen stays in guest mode and all personal data remains in `localStorage`.
+Without these variables the You screen stays in guest mode and all personal data remains in `localStorage`.
 
 ## Browser checks
 
