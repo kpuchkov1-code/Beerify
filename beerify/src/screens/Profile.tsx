@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { DRINKER_LEVELS, type AppData, type CoachPersonality, type DrinkCategory, type DrinkIconId, type DrinkPreset, type DrinkerLevel, type Profile, type ThemedNight } from '../types'
 import { accountEnabled, currentSession, deleteCloudAccount, sendMagicLink, signOut, supabase, syncAccountData } from '../lib/account'
 import { newId } from '../lib/storage'
 import DrinkIcon from '../components/DrinkIcon'
 import { getPushState, retryPushNotifications, subscribePushState } from '../lib/notifications'
+import AppIcon from '../components/AppIcon'
 
 interface Props {
   data: AppData
@@ -36,6 +38,13 @@ async function compressAvatar(file: File): Promise<string> {
   canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
   return canvas.toDataURL('image/webp', .76)
+}
+
+function SettingsDisclosure({ title, badge, open, children, className = '' }: { title: string; badge?: ReactNode; open?: boolean; children: ReactNode; className?: string }) {
+  return <details className={`settings-disclosure ${className}`} open={open}>
+    <summary><span>{title}</span><span>{badge}<AppIcon name="chevron-down" size={19} /></span></summary>
+    <div className="settings-disclosure__body">{children}</div>
+  </details>
 }
 
 export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferences, onSavePreset, onReplaceData }: Props) {
@@ -97,10 +106,10 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
 
   return (
     <main className="screen profile-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">YOUR TAB</span><h1>{data.profile?.name}</h1><p>Local by default. Sync only when you ask.</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">YOU</span><h1>Your profile</h1><p>{data.profile?.name}, your identity and night settings live here. Data stays local unless you enable sync.</p></header>
 
       <section className="settings-section">
-        <div className="section-heading"><h2>Pub profile</h2></div>
+        <div className="section-heading"><h2>Identity</h2></div>
         <div className="avatar-editor">
           <div className="profile-avatar" aria-label="Current avatar">{data.profile?.avatarImageData ? <img src={data.profile.avatarImageData} alt="Your profile" /> : <span>{data.profile?.avatarEmoji || '🍺'}</span>}</div>
           <div><div className="avatar-picker" aria-label="Choose an avatar emoji">{AVATARS.map((emoji) => <button key={emoji} aria-label={`Use ${emoji} as your avatar`} aria-pressed={data.profile?.avatarEmoji === emoji && !data.profile.avatarImageData} onClick={() => data.profile && onUpdateProfile({ ...data.profile, avatarEmoji: emoji, avatarImageData: undefined })}>{emoji}</button>)}</div><label className="text-action avatar-upload">Use a photo<input className="visually-hidden" type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (!file || !data.profile) return; try { onUpdateProfile({ ...data.profile, avatarImageData: await compressAvatar(file) }) } catch { setAccountMessage('That photo could not be prepared.') } }} /></label></div>
@@ -116,31 +125,28 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
         <div className="settings-row"><span><strong>Big-thumb mode</strong><small>Larger drink and game controls</small></span><input aria-label="Big-thumb mode" type="checkbox" role="switch" checked={data.preferences.bigThumbMode} onChange={(event) => onUpdatePreferences({ bigThumbMode: event.target.checked })} /></div>
       </section>
 
-      <section className="settings-section">
-        <div className="section-heading"><h2>Night personality</h2></div>
+      <SettingsDisclosure title="Night preferences" open>
         <label className="field"><span className="field__label">Coach voice</span><select value={data.preferences.coachPersonality} onChange={(event) => onUpdatePreferences({ coachPersonality: event.target.value as CoachPersonality })}><option value="friend">Supportive friend</option><option value="elder">Wise pub elder</option><option value="gremlin">Chaotic gremlin</option></select></label>
         <label className="field"><span className="field__label">Night accent</span><select value={data.preferences.themedNight} onChange={(event) => onUpdatePreferences({ themedNight: event.target.value as ThemedNight })}><option value="classic">Bottle green</option><option value="halloween">Halloween</option><option value="new-year">New Year</option><option value="birthday">Birthday</option><option value="st-patrick">St Patrick’s</option></select></label>
         <label className="field"><span className="field__label">Default game spice · {data.preferences.spiciness}/5</span><input type="range" min="1" max="5" step="1" value={data.preferences.spiciness} onChange={(event) => onUpdatePreferences({ spiciness: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 })} /></label>
-      </section>
+      </SettingsDisclosure>
 
-      <section className="settings-section">
-        <div className="section-heading"><h2>Ride home</h2></div>
+      <SettingsDisclosure title="Ride home">
         <label className="field"><span className="field__label">Ride provider URL</span><input type="url" inputMode="url" value={data.preferences.rideHomeUrl} placeholder="https://m.uber.com/ul/" onChange={(event) => onUpdatePreferences({ rideHomeUrl: event.target.value.slice(0, 500) })} /></label>
         <label className="field"><span className="field__label">Home address</span><textarea rows={2} value={data.preferences.homeAddress} placeholder="Used only to build the ride link on this device" onChange={(event) => onUpdatePreferences({ homeAddress: event.target.value.slice(0, 240) })} /></label>
         <p>Your address stays in this device’s Beerify storage and is only handed to your ride provider when you tap the link.</p>
-      </section>
+      </SettingsDisclosure>
 
-      <section className="settings-section">
-        <div className="section-heading"><h2>Room alerts</h2><span className={push.status === 'granted' ? 'status-badge status-badge--on' : 'status-badge'}>{push.status === 'granted' ? 'Enabled' : push.status === 'unsupported' ? 'iOS only' : 'Off'}</span></div>
+      <SettingsDisclosure title="Room alerts" badge={<span className={push.status === 'granted' ? 'status-badge status-badge--on' : 'status-badge'}>{push.status === 'granted' ? 'Enabled' : push.status === 'unsupported' ? 'iOS only' : 'Off'}</span>}>
         {push.status === 'unsupported' ? <p>Push alerts are available in the installed iOS app. Live room countdowns still appear while this app is open.</p>
           : push.status === 'denied' ? <p>Notifications are blocked. Open iOS Settings → Beerify → Notifications to enable Drink up and round alerts.</p>
           : push.status === 'granted' ? <p>{push.error || 'Drink up countdowns and important round updates can reach you while Beerify is in the background.'}</p>
           : <p>{push.error || 'Beerify is checking whether room alerts are available.'}</p>}
         {(push.status === 'prompt' || push.status === 'error' || Boolean(push.error)) && <button className="btn btn--secondary" onClick={() => void retryPushNotifications()}>{push.status === 'granted' ? 'Retry room alerts' : 'Enable room alerts'}</button>}
-      </section>
+      </SettingsDisclosure>
 
-      <section className="settings-section">
-        <div className="section-heading"><h2>Your drinks</h2><button className="text-action" onClick={() => setShowPreset((value) => !value)}>{showPreset ? 'Close' : 'Add preset'}</button></div>
+      <SettingsDisclosure title="Your drinks">
+        <button className="text-action" onClick={() => setShowPreset((value) => !value)}>{showPreset ? 'Close preset form' : 'Add a drink preset'}</button>
         {showPreset && (
           <div className="preset-form">
             <label className="field"><span className="field__label">Drink name</span><input value={preset.name} placeholder="House lager" onChange={(event) => setPreset({ ...preset, name: event.target.value })} /></label>
@@ -156,10 +162,9 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
           </div>
         )}
         {data.preferences.customPresets.length > 0 && <ul className="custom-drinks">{data.preferences.customPresets.map((item) => <li key={item.id}><DrinkIcon icon={item.icon} size={32} /><span><strong>{item.brand || item.name}</strong><small>{item.detail}</small></span></li>)}</ul>}
-      </section>
+      </SettingsDisclosure>
 
-      <section className="settings-section account-panel">
-        <div className="section-heading"><h2>Account sync</h2><span className={session ? 'status-badge status-badge--on' : 'status-badge'}>{session ? 'Synced' : 'Guest'}</span></div>
+      <SettingsDisclosure title="Account sync" className="account-panel" badge={<span className={session ? 'status-badge status-badge--on' : 'status-badge'}>{session ? 'Synced' : 'Guest'}</span>}>
         {!accountEnabled() ? <p>Supabase is not configured on this deployment. Your data remains on this device.</p> : session ? (
           <>
             <p>Signed in as <strong>{session.user.email}</strong>.</p>
@@ -173,11 +178,14 @@ export default function ProfileScreen({ data, onUpdateProfile, onUpdatePreferenc
           </form>
         )}
         {accountMessage && <p className="status-message" role="status">{accountMessage}</p>}
-      </section>
+      </SettingsDisclosure>
 
-      <section className="settings-section"><div className="section-heading"><h2>Your data</h2></div><button className="settings-action" onClick={exportData}>Export Beerify data <span>↓</span></button></section>
-
-      <section className="settings-section"><div className="section-heading"><h2>Help & legal</h2></div><a className="settings-action" href="/support.html" target="_blank">Support <span>↗</span></a><a className="settings-action" href="/privacy.html" target="_blank">Privacy & safety <span>↗</span></a><p>Beerify estimates are not medical advice and never determine whether you can drive. If in doubt, do not drive.</p></section>
+      <SettingsDisclosure title="Data, help & legal">
+        <button className="settings-action" onClick={exportData}>Export Beerify data <AppIcon name="share" size={20} /></button>
+        <a className="settings-action" href="/support.html" target="_blank">Support <AppIcon name="external" size={20} /></a>
+        <a className="settings-action" href="/privacy.html" target="_blank">Privacy & safety <AppIcon name="external" size={20} /></a>
+        <p>Beerify estimates are not medical advice and never determine whether you can drive. If in doubt, do not drive.</p>
+      </SettingsDisclosure>
 
       <dialog className="native-dialog" ref={deleteDialog} aria-labelledby="delete-account-title">
         <div className="dialog-sheet">

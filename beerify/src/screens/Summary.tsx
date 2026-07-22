@@ -6,6 +6,7 @@ import { morningVerdict } from '../lib/coach'
 import { formatNightDate, formatTime, formatUnits } from '../lib/format'
 import { trackMetric } from '../lib/room'
 import DrinkIcon from '../components/DrinkIcon'
+import AppIcon from '../components/AppIcon'
 
 interface Props { session: NightSession; history: NightSession[]; profile: Profile; onClose: () => void }
 
@@ -33,6 +34,23 @@ function awards(session: NightSession): { title: string; name: string; icon: str
   const distinct = new Set(session.drinks.map((drink) => drink.presetId)).size
   if (distinct >= 3) result.push({ title: 'MENU EXPLORER', name: `${distinct} different orders`, icon: '🗺️' })
   return result.slice(0, 4)
+}
+
+function drawHybridShare(context: CanvasRenderingContext2D, session: NightSession, targetLabel: string, verdict: string, drinks: { name: string; count: number; units: number }[], totalUnits: number, peak: number) {
+  context.fillStyle = '#10241c'; context.fillRect(0, 0, 1080, 1350)
+  context.fillStyle = '#ffb52d'; context.fillRect(72, 64, 104, 104)
+  context.fillStyle = '#10241c'; context.font = '900 64px Archivo, sans-serif'; context.fillText('B', 98, 140)
+  context.fillStyle = '#f7f7f1'; context.font = '800 40px Archivo, sans-serif'; context.fillText('BEERIFY NIGHT TAB', 208, 130)
+  context.fillStyle = '#f7f7f1'; context.fillRect(58, 214, 964, 1060)
+  context.fillStyle = '#173328'; context.font = '900 82px Archivo, sans-serif'; context.fillText(targetLabel.toUpperCase(), 96, 334)
+  context.fillStyle = '#36594b'; context.font = '700 42px Archivo, sans-serif'; context.fillText(formatNightDate(session.startedAt), 96, 402)
+  context.strokeStyle = '#173328'; context.lineWidth = 3; context.beginPath(); context.moveTo(96, 452); context.lineTo(984, 452); context.stroke()
+  context.fillStyle = '#173328'; context.font = '800 47px Archivo, sans-serif'
+  ;[`${session.drinks.length} DRINKS`, `${formatUnits(totalUnits)} UNITS`, `${formatBac(peak)} PEAK`].forEach((metric, index) => context.fillText(metric, 96, 545 + index * 70))
+  context.fillStyle = '#36594b'; context.font = '600 32px Archivo, sans-serif'; context.fillText(session.roomName ? `SQUAD: ${session.roomName}` : verdict, 96, 785)
+  context.fillStyle = '#173328'; context.font = '700 37px Archivo, sans-serif'
+  drinks.slice(0, 5).forEach((drink, index) => context.fillText(`${drink.count}× ${drink.name}  ·  ${formatUnits(drink.units)}u`, 96, 880 + index * 60))
+  context.fillStyle = '#ffb52d'; context.font = '800 29px Archivo, sans-serif'; context.fillText('BEERIFY · YOUR NIGHT, KEPT TOGETHER', 72, 1322)
 }
 
 export default function Summary({ session, history, profile, onClose }: Props) {
@@ -72,19 +90,7 @@ export default function Summary({ session, history, profile, onClose }: Props) {
     const canvas = document.createElement('canvas')
     canvas.width = 1080; canvas.height = 1350
     const context = canvas.getContext('2d')!
-    context.fillStyle = '#10241c'; context.fillRect(0, 0, canvas.width, canvas.height)
-    context.fillStyle = '#ffb52d'; context.fillRect(72, 70, 112, 112)
-    context.fillStyle = '#10241c'; context.font = '900 68px Archivo, sans-serif'; context.fillText('B', 101, 150)
-    context.fillStyle = '#f7f7f4'; context.font = '800 42px Archivo, sans-serif'; context.fillText('BEERIFY NIGHT TAB', 214, 139)
-    context.fillStyle = '#ffb52d'; context.font = '900 88px Archivo, sans-serif'; context.fillText(target.label.toUpperCase(), 72, 300)
-    context.fillStyle = '#f7f7f4'; context.font = '700 44px Archivo, sans-serif'; context.fillText(formatNightDate(session.startedAt), 72, 370)
-    context.strokeStyle = '#527265'; context.lineWidth = 3; context.beginPath(); context.moveTo(72, 420); context.lineTo(1008, 420); context.stroke()
-    const metrics = [`${session.drinks.length} DRINKS`, `${formatUnits(stats.totalUnits)} UNITS`, `${formatBac(stats.peak)} PEAK`]
-    context.font = '800 48px Archivo, sans-serif'; metrics.forEach((metric, index) => context.fillText(metric, 72, 510 + index * 72))
-    context.fillStyle = '#b7c9c0'; context.font = '600 34px Archivo, sans-serif'; context.fillText(session.roomName ? `ROOM: ${session.roomName}` : verdict.headline, 72, 760)
-    context.fillStyle = '#f7f7f4'; context.font = '700 38px Archivo, sans-serif'
-    stats.byDrink.slice(0, 5).forEach((drink, index) => context.fillText(`${drink.count}× ${drink.name}  ·  ${formatUnits(drink.units)}u`, 72, 860 + index * 62))
-    context.fillStyle = '#ffb52d'; context.font = '800 32px Archivo, sans-serif'; context.fillText('THE RECEIPTS HAVE BEEN PUBLISHED.', 72, 1280)
+    drawHybridShare(context, session, target.label, verdict.headline, stats.byDrink, stats.totalUnits, stats.peak)
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
     if (!blob) return
     const file = new File([blob], 'beerify-night.png', { type: 'image/png' })
@@ -101,19 +107,21 @@ export default function Summary({ session, history, profile, onClose }: Props) {
   return (
     <main className="screen summary">
       <header className="summary__masthead"><div className="brand-lockup brand-lockup--small"><span className="brand-lockup__mark">B</span><span>NIGHT TAB</span></div><span>{formatNightDate(session.startedAt)}</span></header>
-      <section className="summary__headline"><span>{target.emoji}</span><h1>{verdict.headline}</h1><p>{verdict.body}</p></section>
-      <dl className="summary-metrics"><div><dt>Drinks</dt><dd>{session.drinks.length}</dd></div><div><dt>Units</dt><dd>{formatUnits(stats.totalUnits)}</dd></div><div><dt>Likely peak</dt><dd>{formatBac(stats.peak)}</dd><small>{formatBac(stats.peakRange.low)}–{formatBac(stats.peakRange.high)} plausible · {formatTime(stats.peakAt)}</small></div><div><dt>Water</dt><dd>{session.waters.length}</dd></div></dl>
+      <div className="summary__sheet">
+        <section className="summary__headline"><span>{target.emoji}</span><h1>{verdict.headline}</h1><p>{verdict.body}</p></section>
+        <dl className="summary-metrics"><div><dt>Drinks</dt><dd>{session.drinks.length}</dd></div><div><dt>Units</dt><dd>{formatUnits(stats.totalUnits)}</dd></div><div><dt>Likely peak</dt><dd>{formatBac(stats.peak)}</dd><small>{formatBac(stats.peakRange.low)}–{formatBac(stats.peakRange.high)} plausible · {formatTime(stats.peakAt)}</small></div><div><dt>Water</dt><dd>{session.waters.length}</dd></div></dl>
 
-      <section className="receipt-block"><div className="section-heading"><h2>The order</h2><span>{formatUnits(stats.totalUnits)}u</span></div><ol>{stats.byDrink.map((drink) => <li key={drink.name}><DrinkIcon icon={drink.icon} size={32} logoUrl={drink.logoUrl} brand={drink.brand} /><span><strong>{drink.count}× {drink.name}</strong><small>{formatUnits(drink.units)} units</small></span></li>)}</ol></section>
+        <section className="receipt-block"><div className="section-heading"><h2>The order</h2><span>{formatUnits(stats.totalUnits)}u</span></div><ol>{stats.byDrink.map((drink) => <li key={drink.name}><DrinkIcon icon={drink.icon} size={32} logoUrl={drink.logoUrl} brand={drink.brand} /><span><strong>{drink.count}× {drink.name}</strong><small>{formatUnits(drink.units)} units</small></span></li>)}</ol></section>
 
-      {nightAwards.length > 0 && <section className="awards"><div className="section-heading"><h2>Pub awards</h2></div><div>{nightAwards.map((award) => <article key={award.title}><span>{award.icon}</span><small>{award.title}</small><strong>{award.name}</strong></article>)}</div></section>}
+        {nightAwards.length > 0 && <section className="awards"><div className="section-heading"><h2>Pub awards</h2></div><div>{nightAwards.map((award) => <article key={award.title}><span>{award.icon}</span><small>{award.title}</small><strong>{award.name}</strong></article>)}</div></section>}
 
-      <section className="summary-notes">
-        <p><strong>{formatUnits(weeklyUnits)} units</strong><span>logged across the last 7 days</span></p>
-        {session.drinks.length > 0 && <p><strong>{formatTime(stats.soberAt)}</strong><span>estimated below .005% BAC</span></p>}
-      </section>
+        <section className="summary-notes">
+          <p><strong>{formatUnits(weeklyUnits)} units</strong><span>logged across the last 7 days</span></p>
+          {session.drinks.length > 0 && <p><strong>{formatTime(stats.soberAt)}</strong><span>estimated below .005% BAC</span></p>}
+        </section>
+      </div>
 
-      <div className="summary-actions"><button className="btn btn--primary btn--big" onClick={shareRecap}>Share the evidence</button><button className="btn btn--quiet" onClick={onClose}>Back to Beerify</button></div>
+      <div className="summary-actions"><button className="btn btn--primary btn--big" onClick={shareRecap}><AppIcon name="share" size={20} />Share recap</button><button className="btn btn--quiet" onClick={onClose}>Back to Beerify</button></div>
       {shareStatus && <p role="status" className="status-message">{shareStatus}</p>}
     </main>
   )

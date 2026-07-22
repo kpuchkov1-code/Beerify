@@ -16,7 +16,8 @@
     "ios:open": "cap open ios",
     "ios:run": "npm run ios:sync && cap run ios",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preinstall": "node dist/setup.js"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",

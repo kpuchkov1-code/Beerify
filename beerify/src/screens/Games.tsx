@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GameAction, GameKind, GameView, NightMode, RoomMembership, RoomState } from '../types'
 import { createLocalGame, GAME_DEFINITIONS, gameByKind, promptFor, reduceLocalGame, type LocalGameState } from '../lib/games'
 import { endRoomGame, fetchRoom, sendGameAction, startRoomGame, useRoomGame } from '../lib/room'
+import AppIcon from '../components/AppIcon'
 
 type GameFilter = 'all' | 'fast' | 'social' | 'quiz' | 'classic'
 
@@ -146,7 +147,7 @@ export default function Games({ nightMode, membership, room, spiciness, onSpicin
 
   return (
     <main className="screen games-screen">
-      <header className="page-header page-header--stacked"><span className="page-kicker">{nightMode === 'group' ? 'SQUAD NIGHT' : 'PASS THE PHONE'}</span><h1>Pick your poison</h1><p>{nightMode === 'group' ? 'The host starts once. Everyone in the squad gets the same live round.' : 'Local games stay on this phone for the whole night.'}</p></header>
+      <header className="page-header page-header--stacked"><span className="page-kicker">{nightMode === 'group' ? 'SQUAD NIGHT' : 'PASS THE PHONE'}</span><h1>Choose a game</h1><p>{nightMode === 'group' ? 'The host starts once. Everyone in the squad gets the same live round.' : 'Local games stay on this phone for the whole night.'}</p></header>
       <section className="spice-control" aria-labelledby="spice-title">
         <div><strong id="spice-title">Spiciness {spiciness}/5</strong><small>{['', 'Family-safe', 'Mild', 'Medium', 'Spicy', 'Unfiltered'][spiciness]}</small></div>
         <input aria-label="Game spiciness" type="range" min="1" max="5" step="1" value={spiciness} onChange={(event) => onSpiciness(Number(event.target.value))} />
@@ -198,7 +199,7 @@ function GamePlay({ definition, local, remote, answer, now, busy, message, onAns
 
   return (
     <main className="screen game-play">
-      <header className="page-header"><button className="icon-btn" aria-label="Close game" onClick={onClose}>←</button><div><span className="page-kicker">ROUND {round + 1}{local ? ` · ${local.score} PTS` : ''}</span><h1>{definition.emoji} {definition.title}</h1><p>{remote ? `Live in room · ${remote.players.length} players` : 'Local pass-the-phone game'}</p></div></header>
+      <header className="page-header"><button className="icon-btn" aria-label="Close game" onClick={onClose}><AppIcon name="arrow-left" /></button><div><span className="page-kicker">ROUND {round + 1}{local ? ` · ${local.score} PTS` : ''}</span><h1>{definition.emoji} {definition.title}</h1><p>{remote ? `Live in room · ${remote.players.length} players` : 'Local pass-the-phone game'}</p></div></header>
       {remote && <ul className="game-roster" aria-label="Game players">{remote.players.map((player) => <li key={player.memberId}><span aria-hidden="true">{player.ready ? '●' : '○'}</span><strong>{player.name}{player.spectator ? ' · spectating' : ''}</strong><span>{player.score} pts</span></li>)}</ul>}
       {phase === 'lobby' ? <section className="game-setup"><h2>Ready up</h2><p>{definition.subtitle}</p>{remote ? <>{!remote.privateState?.ready && <button className="btn btn--secondary" disabled={busy} onClick={() => dispatch({ type: 'ready' })}>I’m ready</button>}{remote.canControl && <button className="btn btn--primary btn--big" disabled={busy} onClick={() => dispatch({ type: 'start' })}>Start live round</button>}</> : <button className="btn btn--primary btn--big" onClick={() => dispatch({ type: 'start' })}>Start game</button>}</section> : phase === 'paused' ? <section className="game-setup"><h2>Host disconnected</h2><p>The game is paused. If they do not return, the oldest connected player can take over after 60 seconds.</p><button className="btn btn--primary" disabled={busy} onClick={() => dispatch({ type: 'claim-host' })}>Claim game host</button></section> : <>
         <section className="game-prompt" aria-live="polite"><span>{seconds !== null ? `${seconds}s` : `Round ${round + 1}`}</span><h2>{prompt}</h2>{responseCount > 0 && <small>{responseCount} response{responseCount === 1 ? '' : 's'} in</small>}</section>
